@@ -88,7 +88,7 @@ if errorlevel 1 (
 )
 
 echo [2/7] Updating package-lock.json...
-powershell -NoProfile -Command "$json = Get-Content package-lock.json -Raw -Encoding UTF8 | ConvertFrom-Json; $json.version = '%NEW_VERSION%'; if ($json.packages -and $json.packages.'') { $json.packages.''.version = '%NEW_VERSION%' }; $json | ConvertTo-Json -Depth 100 | Set-Content package-lock.json -Encoding UTF8"
+powershell -NoProfile -Command "$lines = Get-Content package-lock.json -Encoding UTF8; $updated = $false; for ($i = 0; $i -lt [Math]::Min(10, $lines.Length); $i++) { if (-not $updated -and $lines[$i] -match '\"version\":') { $lines[$i] = $lines[$i] -replace '\"version\": \"[^\"]+\"', '\"version\": \"%NEW_VERSION%\"'; $updated = $true } }; $lines | Set-Content package-lock.json -Encoding UTF8"
 if errorlevel 1 (
     echo [Warning] Failed to update package-lock.json, skipping
 )
