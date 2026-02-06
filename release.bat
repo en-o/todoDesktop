@@ -1,147 +1,153 @@
 @echo off
-chcp 65001 >nul
+chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo    Todo Desktop 自动发布脚本
+echo    Todo Desktop Auto Release Script
 echo ========================================
 echo.
 
-:: 检查是否在 git 仓库中
-git rev-parse --git-dir >nul 2>&1
-if errorlevel 1 (
-    echo [错误] 当前目录不是 Git 仓库
+:: Check version parameter
+if "%~1"=="" (
+    echo [Error] Version number is required!
+    echo.
+    echo Usage: release.bat ^<version^>
+    echo Example: release.bat 0.0.2
+    echo.
     pause
     exit /b 1
 )
 
-:: 检查是否有未提交的更改
-git diff --quiet
+set NEW_VERSION=%~1
+
+:: Check if in git repository
+git rev-parse --git-dir >nul 2>&1
 if errorlevel 1 (
-    echo [警告] 检测到未提交的更改：
+    echo [Error] Not a Git repository
+    pause
+    exit /b 1
+)
+
+:: Check for uncommitted changes
+git diff --quiet 2>nul
+if errorlevel 1 (
+    echo [Warning] Uncommitted changes detected:
     git status --short
     echo.
-    set /p COMMIT_CHANGES="是否先提交这些更改？(y/n): "
+    set /p COMMIT_CHANGES="Commit these changes first? (y/n): "
     if /i "!COMMIT_CHANGES!"=="y" (
-        set /p COMMIT_MSG="请输入提交信息: "
+        set /p COMMIT_MSG="Enter commit message: "
         git add -A
         git commit -m "!COMMIT_MSG!"
         if errorlevel 1 (
-            echo [错误] 提交失败
+            echo [Error] Commit failed
             pause
             exit /b 1
         )
     ) else (
-        echo [错误] 请先处理未提交的更改
+        echo [Error] Please handle uncommitted changes first
         pause
         exit /b 1
     )
 )
 
-:: 读取当前版本
+:: Read current version
 for /f "tokens=2 delims=:, " %%a in ('findstr /C:"\"version\"" src-tauri\tauri.conf.json') do (
     set CURRENT_VERSION=%%~a
     goto :found_version
 )
 :found_version
-echo 当前版本: %CURRENT_VERSION%
+set CURRENT_VERSION=%CURRENT_VERSION:"=%
+echo Current version: %CURRENT_VERSION%
+echo New version: %NEW_VERSION%
 echo.
 
-:: 输入新版本号
-set /p NEW_VERSION="请输入新版本号 (如 0.0.2): "
-if "%NEW_VERSION%"=="" (
-    echo [错误] 版本号不能为空
-    pause
-    exit /b 1
-)
-
+echo Actions to perform:
+echo   1. Update package.json to %NEW_VERSION%
+echo   2. Update package-lock.json to %NEW_VERSION%
+echo   3. Update src-tauri/tauri.conf.json to %NEW_VERSION%
+echo   4. Update src-tauri/Cargo.toml to %NEW_VERSION%
+echo   5. Commit version update
+echo   6. Create Git tag v%NEW_VERSION%
+echo   7. Push to remote to trigger build
 echo.
-echo 即将执行以下操作：
-echo   1. 更新 package.json 版本为 %NEW_VERSION%
-echo   2. 更新 package-lock.json 版本为 %NEW_VERSION%
-echo   3. 更新 src-tauri/tauri.conf.json 版本为 %NEW_VERSION%
-echo   4. 更新 src-tauri/Cargo.toml 版本为 %NEW_VERSION%
-echo   5. 提交版本更新
-echo   6. 创建 Git 标签 v%NEW_VERSION%
-echo   7. 推送到远程仓库触发自动构建
-echo.
-set /p CONFIRM="确认继续？(y/n): "
+set /p CONFIRM="Continue? (y/n): "
 if /i not "%CONFIRM%"=="y" (
-    echo 已取消
+    echo Cancelled
     pause
     exit /b 0
 )
 
 echo.
-echo [1/7] 更新 package.json...
-powershell -Command "(Get-Content package.json) -replace '\"version\": \"[^\"]+\"', '\"version\": \"%NEW_VERSION%\"' | Set-Content package.json -Encoding UTF8"
+echo [1/7] Updating package.json...
+powershell -Command "(Get-Content package.json -Encoding UTF8) -replace '\"version\": \"[^\"]+\"', '\"version\": \"%NEW_VERSION%\"' | Set-Content package.json -Encoding UTF8"
 if errorlevel 1 (
-    echo [错误] 更新 package.json 失败
+    echo [Error] Failed to update package.json
     pause
     exit /b 1
 )
 
-echo [2/7] 更新 package-lock.json...
-powershell -Command "$json = Get-Content package-lock.json -Raw | ConvertFrom-Json; $json.version = '%NEW_VERSION%'; if ($json.packages -and $json.packages.'') { $json.packages.''.version = '%NEW_VERSION%' }; $json | ConvertTo-Json -Depth 100 | Set-Content package-lock.json -Encoding UTF8"
+echo [2/7] Updating package-lock.json...
+powershell -Command "$json = Get-Content package-lock.json -Raw -Encoding UTF8 | ConvertFrom-Json; $json.version = '%NEW_VERSION%'; if ($json.packages -and $json.packages.'') { $json.packages.''.version = '%NEW_VERSION%' }; $json | ConvertTo-Json -Depth 100 | Set-Content package-lock.json -Encoding UTF8"
 if errorlevel 1 (
-    echo [警告] 更新 package-lock.json 失败，跳过
+    echo [Warning] Failed to update package-lock.json, skipping
 )
 
-echo [3/7] 更新 src-tauri/tauri.conf.json...
-powershell -Command "$json = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json; $json.package.version = '%NEW_VERSION%'; $json | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8"
+echo [3/7] Updating src-tauri/tauri.conf.json...
+powershell -Command "$json = Get-Content src-tauri/tauri.conf.json -Raw -Encoding UTF8 | ConvertFrom-Json; $json.package.version = '%NEW_VERSION%'; $json | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8"
 if errorlevel 1 (
-    echo [错误] 更新 tauri.conf.json 失败
+    echo [Error] Failed to update tauri.conf.json
     pause
     exit /b 1
 )
 
-echo [4/7] 更新 src-tauri/Cargo.toml...
-powershell -Command "(Get-Content src-tauri/Cargo.toml) -replace '^version = \"[^\"]+\"', 'version = \"%NEW_VERSION%\"' | Set-Content src-tauri/Cargo.toml -Encoding UTF8"
+echo [4/7] Updating src-tauri/Cargo.toml...
+powershell -Command "(Get-Content src-tauri/Cargo.toml -Encoding UTF8) -replace '^version = \"[^\"]+\"', 'version = \"%NEW_VERSION%\"' | Set-Content src-tauri/Cargo.toml -Encoding UTF8"
 if errorlevel 1 (
-    echo [错误] 更新 Cargo.toml 失败
+    echo [Error] Failed to update Cargo.toml
     pause
     exit /b 1
 )
 
-echo [5/7] 提交版本更新...
+echo [5/7] Committing version update...
 git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
 git commit -m "chore: bump version to %NEW_VERSION%"
 if errorlevel 1 (
-    echo [错误] 提交失败
+    echo [Error] Commit failed
     pause
     exit /b 1
 )
 
-echo [6/7] 创建 Git 标签 v%NEW_VERSION%...
+echo [6/7] Creating Git tag v%NEW_VERSION%...
 git tag -a "v%NEW_VERSION%" -m "Release v%NEW_VERSION%"
 if errorlevel 1 (
-    echo [错误] 创建标签失败
+    echo [Error] Failed to create tag
     pause
     exit /b 1
 )
 
-echo [7/7] 推送到远程仓库...
+echo [7/7] Pushing to remote...
 git push origin main
 git push origin "v%NEW_VERSION%"
 if errorlevel 1 (
-    echo [错误] 推送失败
+    echo [Error] Push failed
     pause
     exit /b 1
 )
 
 echo.
 echo ========================================
-echo    发布成功！
+echo    Release Successful!
 echo ========================================
 echo.
-echo 版本: v%NEW_VERSION%
-echo 标签: v%NEW_VERSION%
+echo Version: v%NEW_VERSION%
+echo Tag: v%NEW_VERSION%
 echo.
-echo GitHub Actions 将自动开始构建，请访问：
-echo https://github.com/你的用户名/todoDesktop/actions
+echo GitHub Actions will start building automatically.
+echo Check: https://github.com/YOUR_USERNAME/todoDesktop/actions
 echo.
-echo 构建完成后，Release 将出现在：
-echo https://github.com/你的用户名/todoDesktop/releases
+echo Release will be available at:
+echo https://github.com/YOUR_USERNAME/todoDesktop/releases
 echo.
 
 pause
