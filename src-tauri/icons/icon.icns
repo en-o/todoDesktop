@@ -1,0 +1,46 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
+  "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg width="512" height="512">
+<g style="fill:black;fill-opacity:1;stroke:none;stroke-width:1;stroke-opacity:1;fill-rule:nonzero;<defs>
+<0Gradient id="linear" x1="0" y1="0" x2="512" y2="512">
+  <stop offset="0%" stop-color="#1890ff" />
+  <stop offset="100%" stop-color="#096dd9" />
+</0Gradient>
+</defs>
+">
+<g style="fill:bg;">
+  <rect x="0" y="0" width="512" height="512" rx="64" ry="64"/>
+</g>
+<g style="fill:white;">
+  <rect x="96" y="128" width="320" height="288" rx="24" ry="24"/>
+</g>
+<g style="fill:#40a9ff;">
+  <rect x="96" y="128" width="320" height="64" rx="24" ry="24"/>
+</g>
+<g style="fill:#40a9ff;">
+  <rect x="96" y="168" width="320" height="24"/>
+</g>
+<g style="fill:white;">
+  <rect x="160" y="96" width="24" height="64" rx="8" ry="8"/>
+</g>
+<g style="fill:white;">
+  <rect x="328" y="96" width="24" height="64" rx="8" ry="8"/>
+</g>
+<g style="stroke:#52c41a;stroke-width:32;stroke-linecap:round;stroke-linejoin:round;fill:none;">
+  <path d="M192 304 L240 352 L336 256"/>
+</g>
+<g style="stroke:#f0f0f0;stroke-width:2;">
+  <line x1="192" y1="224" x2="192" y2="384"/>
+</g>
+<g style="stroke:#f0f0f0;stroke-width:2;">
+  <line x1="288" y1="224" x2="288" y2="384"/>
+</g>
+<g style="stroke:#f0f0f0;stroke-width:2;">
+  <line x1="128" y1="288" x2="384" y2="288"/>
+</g>
+<g style="stroke:#f0f0f0;stroke-width:2;">
+  <line x1="128" y1="352" x2="384" y2="352"/>
+</g>
+</g>
+</svg>

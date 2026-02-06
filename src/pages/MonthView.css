@@ -1,0 +1,16 @@
+.month-view {
+  padding: 20px;
+}
+
+.month-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.date-cell-content {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
