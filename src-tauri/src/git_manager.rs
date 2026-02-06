@@ -3,6 +3,12 @@ use anyhow::{Result, anyhow};
 use std::path::Path;
 use crate::config::{Config, GitInfo};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 pub struct GitManager {
     repo: Repository,
     config: Config,
@@ -59,8 +65,13 @@ impl GitManager {
         };
 
         // 执行克隆
-        let output = std::process::Command::new("git")
-            .args(["clone", &clone_url, clone_path.to_str().unwrap()])
+        let mut cmd = std::process::Command::new("git");
+        cmd.args(["clone", &clone_url, clone_path.to_str().unwrap()]);
+
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd
             .output()
             .map_err(|e| anyhow!("无法执行 git 命令: {}", e))?;
 
@@ -204,9 +215,14 @@ impl GitManager {
 
     pub fn push(&self) -> Result<()> {
         // 使用系统 git 命令以支持 Git Credential Manager
-        let output = std::process::Command::new("git")
-            .args(["push"])
-            .current_dir(&self.config.local_path)
+        let mut cmd = std::process::Command::new("git");
+        cmd.args(["push"])
+            .current_dir(&self.config.local_path);
+
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd
             .output()
             .map_err(|e| anyhow!("无法执行 git 命令: {}", e))?;
 
@@ -220,9 +236,14 @@ impl GitManager {
 
     pub fn pull(&self) -> Result<()> {
         // 使用系统 git 命令以支持 Git Credential Manager
-        let output = std::process::Command::new("git")
-            .args(["pull"])
-            .current_dir(&self.config.local_path)
+        let mut cmd = std::process::Command::new("git");
+        cmd.args(["pull"])
+            .current_dir(&self.config.local_path);
+
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd
             .output()
             .map_err(|e| anyhow!("无法执行 git 命令: {}", e))?;
 
