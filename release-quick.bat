@@ -1,37 +1,35 @@
 @echo off
-chcp 65001 >nul 2>&1
 setlocal EnableDelayedExpansion
 
-:: Todo Desktop 快速发版脚本 (使用当前版本号)
+:: Todo Desktop Quick Release Script (uses current version)
 
 echo ========================================
-echo    Todo Desktop 快速发版脚本
-echo    (使用当前版本号)
+echo   Todo Desktop Quick Release
 echo ========================================
 echo.
 
-:: 检查是否在 git 仓库中
+:: Check git repo
 if not exist ".git" (
-    echo [ERROR] 当前目录不是 git 仓库
+    echo [ERROR] Not a git repository
     pause
     exit /b 1
 )
 
-:: 检查是否有未提交的更改
+:: Check uncommitted changes
 git diff --quiet --cached 2>nul
 git diff --quiet 2>nul
 if errorlevel 1 (
-    echo [WARN] 检测到未提交的更改:
+    echo [WARN] Uncommitted changes detected:
     git status --short
     echo.
-    echo [ERROR] 请先提交所有更改再发版
+    echo [ERROR] Please commit all changes first
     pause
     exit /b 1
 )
 
-:: 读取当前版本号
+:: Read current version
 if not exist "src-tauri\tauri.conf.json" (
-    echo [ERROR] 找不到 src-tauri/tauri.conf.json
+    echo [ERROR] src-tauri/tauri.conf.json not found
     pause
     exit /b 1
 )
@@ -39,63 +37,62 @@ if not exist "src-tauri\tauri.conf.json" (
 for /f "tokens=*" %%i in ('node -e "console.log(JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')).package.version)"') do set VERSION=%%i
 
 if "%VERSION%"=="" (
-    echo [ERROR] 无法读取版本号
+    echo [ERROR] Could not read version
     pause
     exit /b 1
 )
 
-echo [INFO] 当前版本: %VERSION%
+echo [INFO] Current version: %VERSION%
 echo.
 
-:: 检查标签是否已存在
+:: Check if tag exists
 git tag -l "v%VERSION%" | findstr "v%VERSION%" >nul 2>&1
 if not errorlevel 1 (
-    echo [ERROR] 标签 v%VERSION% 已存在
-    echo 请先更新版本号，或使用 release.bat 指定新版本
+    echo [ERROR] Tag v%VERSION% already exists
+    echo Please update version first or use release.bat
     pause
     exit /b 1
 )
 
-echo 将要执行的操作:
-echo   1. 创建 Git 标签 v%VERSION%
-echo   2. 推送到远程触发构建
+echo Actions:
+echo   1. Create Git tag v%VERSION%
+echo   2. Push to remote
 echo.
-set /p CONFIRM="发布 v%VERSION%? (y/n): "
+set /p CONFIRM="Release v%VERSION%? (y/n): "
 if /i not "%CONFIRM%"=="y" (
-    echo 已取消
+    echo Cancelled
     pause
     exit /b 0
 )
 
 echo.
-echo [INFO] 创建标签 v%VERSION%...
+echo [INFO] Creating tag v%VERSION%...
 git tag -a "v%VERSION%" -m "Release v%VERSION%"
 if errorlevel 1 (
-    echo [ERROR] 创建标签失败
+    echo [ERROR] Failed to create tag
     pause
     exit /b 1
 )
-echo [SUCCESS] 标签创建完成
+echo [OK] Tag created
 
-echo [INFO] 推送到远程...
+echo [INFO] Pushing to remote...
 git push origin main
 git push origin "v%VERSION%"
 if errorlevel 1 (
-    echo [ERROR] 推送失败
+    echo [ERROR] Push failed
     pause
     exit /b 1
 )
-echo [SUCCESS] 推送完成
+echo [OK] Pushed
 
 echo.
 echo ========================================
-echo   发版成功！
+echo   Release Successful!
 echo ========================================
 echo.
-echo 版本号: v%VERSION%
+echo Version: v%VERSION%
 echo.
-echo GitHub Actions 将自动开始构建。
-echo 请查看: https://github.com/YOUR_USERNAME/todoDesktop/actions
+echo GitHub Actions will start building.
 echo.
 
 pause
