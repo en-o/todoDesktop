@@ -234,11 +234,6 @@ impl GitManager {
         Ok(())
     }
 
-    /// 检查是否有远程分支
-    pub fn has_remote(&self) -> bool {
-        self.repo.find_remote("origin").is_ok()
-    }
-
     /// 获取冲突文件列表
     pub fn get_conflict_files(&self) -> Result<Vec<String>> {
         let index = self.repo.index()?;
