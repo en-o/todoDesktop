@@ -102,6 +102,7 @@ npm install -D @tauri-apps/cli
 ### 开发模式
 
 ```bash
+# 清理缓存  cargo clean --manifest-path src-tauri/Cargo.toml
 npm run tauri dev
 ```
 
