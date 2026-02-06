@@ -18,8 +18,7 @@
     "antd": "^5.12.5",
     "@ant-design/icons": "^5.2.6",
     "dayjs": "^1.11.10",
-    "react-markdown": "^9.0.1",
-    "remark-gfm": "^4.0.0",
+    "vditor": "^3.10.8",
     "zustand": "^4.4.7",
     "@tauri-apps/api": "^1.5.2"
   },

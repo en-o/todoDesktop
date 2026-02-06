@@ -1,46 +1,77 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Button, Typography, Input, message, Tabs, Spin } from 'antd';
-import { SaveOutlined } from '@ant-design/icons';
+import { Typography, message, Spin } from 'antd';
 import { invoke } from '@tauri-apps/api/tauri';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import dayjs from 'dayjs';
 import { useConfigStore } from '../store/configStore';
+import MarkdownEditor from '../components/MarkdownEditor';
 import './DayView.css';
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
 
 export default function DayView() {
   const { date } = useParams<{ date: string }>();
-  const { isConfigured } = useConfigStore();
+  const { isConfigured, config } = useConfigStore();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   const parsedDate = dayjs(date);
   const year = parsedDate.format('YYYY');
   const month = parsedDate.format('MM');
-  const day = parsedDate.format('DD');
+  const day = parsedDate.format('MM-DD'); // 新格式: mm-dd
 
-  const handleSave = useCallback(async () => {
+  // 文件路径: 年/月/mm-dd.md
+  const getFilePath = useCallback(() => {
+    return `${year}/${month}/${day}.md`;
+  }, [year, month, day]);
+
+  // 同步到远程
+  const syncToRemote = useCallback(async () => {
+    if (!config?.remoteUrl) return;
+
+    try {
+      await invoke('git_push');
+    } catch (error) {
+      // 静默失败，不影响用户体验
+      console.error('同步失败:', error);
+    }
+  }, [config?.remoteUrl]);
+
+  const handleSave = useCallback(async (silent = false) => {
     if (!isConfigured) {
-      message.warning('请先在设置中配置本地数据目录');
+      if (!silent) {
+        message.warning('请先在设置中配置本地数据目录');
+      }
       return;
     }
 
     setSaving(true);
     try {
-      const filepath = `${year}/${month}/${day}.md`;
+      const filepath = getFilePath();
       await invoke('write_file', { filepath, content });
-      message.success('保存成功');
+      setIsDirty(false);
+
+      // 保存后自动同步
+      await syncToRemote();
+
+      if (!silent) {
+        message.success('保存成功');
+      }
     } catch (error) {
-      message.error(`保存失败: ${error}`);
+      if (!silent) {
+        message.error(`保存失败: ${error}`);
+      }
     } finally {
       setSaving(false);
     }
-  }, [year, month, day, content, isConfigured]);
+  }, [content, isConfigured, getFilePath, syncToRemote]);
+
+  const handleContentChange = useCallback((value: string) => {
+    setContent(value);
+    setIsDirty(true);
+  }, []);
 
   useEffect(() => {
     if (isConfigured && date) {
@@ -55,7 +86,7 @@ export default function DayView() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        handleSave();
+        handleSave(false);
       }
     };
 
@@ -63,12 +94,24 @@ export default function DayView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
+  // 自动保存: 输入停止 2 秒后自动保存（静默模式）
+  useEffect(() => {
+    if (!isDirty || !isConfigured) return;
+
+    const timer = setTimeout(() => {
+      handleSave(true);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [content, isDirty, isConfigured, handleSave]);
+
   const loadContent = async () => {
     setLoading(true);
     try {
-      const filepath = `${year}/${month}/${day}.md`;
+      const filepath = getFilePath();
       const data = await invoke<string>('read_file', { filepath });
       setContent(data || getDefaultContent());
+      setIsDirty(false);
     } catch (error) {
       setContent(getDefaultContent());
     } finally {
@@ -77,45 +120,16 @@ export default function DayView() {
   };
 
   const getDefaultContent = () => {
-    return `# ${year}-${month}-${day}
+    return `# ${parsedDate.format('YYYY-MM-DD')}
 
 ## 待办事项
 
 - [ ]
 
-## 笔记
-
-
+## 完成事项
 
 `;
   };
-
-  const items = [
-    {
-      key: 'edit',
-      label: '编辑',
-      children: (
-        <TextArea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="使用 Markdown 格式编写..."
-          className="markdown-editor"
-          disabled={!isConfigured}
-        />
-      ),
-    },
-    {
-      key: 'preview',
-      label: '预览',
-      children: (
-        <div className="markdown-preview">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {content}
-          </ReactMarkdown>
-        </div>
-      ),
-    },
-  ];
 
   const weekday = ['日', '一', '二', '三', '四', '五', '六'][parsedDate.day()];
 
@@ -123,20 +137,18 @@ export default function DayView() {
     <div className="day-view">
       <div className="day-header">
         <div className="day-title">
-          <Title level={3} style={{ margin: 0 }}>
-            {parsedDate.format('YYYY年M月D日')}
+          <Title level={4} style={{ margin: 0 }}>
+            {parsedDate.format('M月D日')}
+            <Text type="secondary" style={{ marginLeft: 8, fontSize: 14 }}>
+              星期{weekday}
+            </Text>
           </Title>
-          <Text type="secondary">星期{weekday}</Text>
         </div>
-        <Button
-          type="primary"
-          icon={<SaveOutlined />}
-          onClick={handleSave}
-          loading={saving}
-          disabled={!isConfigured}
-        >
-          保存
-        </Button>
+        <div className="day-status">
+          {saving && <Text type="secondary">保存中...</Text>}
+          {isDirty && !saving && <Text type="warning">未保存</Text>}
+          {!isDirty && !saving && isConfigured && <Text type="success">已保存</Text>}
+        </div>
       </div>
 
       {loading ? (
@@ -144,7 +156,18 @@ export default function DayView() {
           <Spin size="large" />
         </div>
       ) : (
-        <Tabs defaultActiveKey="edit" items={items} className="editor-tabs" />
+        <div className="editor-container">
+          <MarkdownEditor
+            value={content}
+            onChange={handleContentChange}
+            onSave={handleSave}
+            disabled={!isConfigured}
+            placeholder="开始编写今天的待办事项..."
+            year={year}
+            month={month}
+            day={day}
+          />
+        </div>
       )}
     </div>
   );

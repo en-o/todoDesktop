@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Outlet, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { message, Alert } from 'antd';
-import { invoke } from '@tauri-apps/api/tauri';
+import { useState, useCallback } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Alert } from 'antd';
 import dayjs from 'dayjs';
 import { useConfigStore } from '../store/configStore';
+import { useAutoSync } from '../hooks/useAutoSync';
 import Sidebar from './Sidebar';
+import ConflictResolver from './ConflictResolver';
 import './Layout.css';
 
 export default function Layout() {
@@ -12,6 +13,18 @@ export default function Layout() {
   const location = useLocation();
   const [syncing, setSyncing] = useState(false);
   const { isConfigured } = useConfigStore();
+
+  // 自动同步
+  const {
+    sync,
+    conflictFiles,
+    showConflictResolver,
+    handleConflictResolved,
+    handleConflictCancel,
+  } = useAutoSync({
+    onSyncStart: () => setSyncing(true),
+    onSyncEnd: () => setSyncing(false),
+  });
 
   // 从 URL 获取当前日期，默认今天
   const getSelectedDate = () => {
@@ -21,23 +34,15 @@ export default function Layout() {
 
   const selectedDate = getSelectedDate();
 
-  const handleDateSelect = (date: string) => {
+  const handleDateSelect = useCallback((date: string) => {
     navigate(`/day/${date}`);
-  };
+  }, [navigate]);
 
-  const handleSync = async () => {
+  const handleSync = useCallback(async () => {
     setSyncing(true);
-    try {
-      await invoke('git_pull');
-      message.success('拉取成功');
-      await invoke('git_push');
-      message.success('同步成功');
-    } catch (error) {
-      message.error(`同步失败: ${error}`);
-    } finally {
-      setSyncing(false);
-    }
-  };
+    await sync(false);
+    setSyncing(false);
+  }, [sync]);
 
   const isSettingsPage = location.pathname === '/settings';
   const showConfigAlert = !isConfigured && !isSettingsPage;
@@ -76,6 +81,14 @@ export default function Layout() {
         )}
         <Outlet context={{ selectedDate }} />
       </div>
+
+      {/* 冲突解决器 */}
+      <ConflictResolver
+        visible={showConflictResolver}
+        conflictFiles={conflictFiles}
+        onResolved={handleConflictResolved}
+        onCancel={handleConflictCancel}
+      />
     </div>
   );
 }

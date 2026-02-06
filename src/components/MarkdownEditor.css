@@ -1,0 +1,149 @@
+.markdown-editor-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.vditor-wrapper {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 覆盖 Vditor 默认样式以适配应用主题 */
+.vditor {
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.vditor-toolbar {
+  background: #fafafa !important;
+  border-bottom: 1px solid #f0f0f0 !important;
+  padding: 8px 16px !important;
+  flex-wrap: wrap !important;
+  height: auto !important;
+  min-height: 40px !important;
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+.vditor-toolbar__item {
+  margin: 0 2px !important;
+  overflow: visible !important;
+}
+
+.vditor-toolbar__item button {
+  border-radius: 4px !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+}
+
+.vditor-toolbar__item button svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* 工具栏提示框 z-index */
+.vditor-hint,
+.vditor-tip,
+.vditor-panel,
+.vditor-toolbar .vditor-tooltipped::after,
+.vditor-toolbar .vditor-tooltipped::before {
+  z-index: 100 !important;
+}
+
+.vditor-toolbar__item button:hover {
+  background: #e6f7ff !important;
+}
+
+.vditor-ir {
+  padding: 24px !important;
+  font-size: 15px !important;
+  line-height: 1.8 !important;
+}
+
+.vditor-ir pre.vditor-reset {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+/* 代码块样式 */
+.vditor-ir pre.vditor-reset code {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace !important;
+}
+
+/* 任务列表样式 */
+.vditor-ir .vditor-task input {
+  margin-right: 8px;
+  transform: scale(1.2);
+}
+
+/* 链接样式 */
+.vditor-ir a {
+  color: #1890ff !important;
+}
+
+/* 引用块样式 */
+.vditor-ir blockquote {
+  border-left: 4px solid #1890ff !important;
+  background: #f9f9f9 !important;
+  padding: 12px 16px !important;
+  margin: 16px 0 !important;
+}
+
+/* 表格样式 */
+.vditor-ir table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin: 16px 0 !important;
+}
+
+.vditor-ir table th,
+.vditor-ir table td {
+  border: 1px solid #ddd !important;
+  padding: 8px 12px !important;
+}
+
+.vditor-ir table th {
+  background: #fafafa !important;
+}
+
+/* 计数器样式 */
+.vditor-counter {
+  color: #999 !important;
+  font-size: 12px !important;
+  padding: 4px 16px !important;
+  border-top: 1px solid #f0f0f0 !important;
+}
+
+/* 即时渲染模式标题样式 */
+.vditor-ir h1 {
+  font-size: 28px !important;
+  border-bottom: 1px solid #eee !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 16px !important;
+}
+
+.vditor-ir h2 {
+  font-size: 22px !important;
+  color: #1890ff !important;
+  margin-top: 24px !important;
+}
+
+.vditor-ir h3 {
+  font-size: 18px !important;
+  margin-top: 20px !important;
+}
+
+/* 占位符样式 */
+.vditor-ir__placeholder {
+  color: #bbb !important;
+}
+
+/* 完成事项区域样式 - 已完成的任务显示删除线和灰色 */
+.vditor-ir .vditor-task--done {
+  text-decoration: line-through;
+  color: #999 !important;
+}
+
+.vditor-ir .vditor-task--done input {
+  opacity: 0.6;
+}

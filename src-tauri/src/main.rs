@@ -190,6 +190,98 @@ async fn is_git_repo(path: String) -> Result<bool, String> {
     Ok(GitManager::is_git_repo(&path))
 }
 
+#[tauri::command]
+async fn has_conflicts(state: State<'_, AppState>) -> Result<bool, String> {
+    let git_manager = state.git_manager.lock().unwrap();
+
+    if let Some(git_mgr) = git_manager.as_ref() {
+        git_mgr.has_conflicts()
+            .map_err(|e| e.to_string())
+    } else {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+async fn get_conflict_files(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let git_manager = state.git_manager.lock().unwrap();
+
+    if let Some(git_mgr) = git_manager.as_ref() {
+        git_mgr.get_conflict_files()
+            .map_err(|e| e.to_string())
+    } else {
+        Ok(vec![])
+    }
+}
+
+#[tauri::command]
+async fn get_conflict_versions(
+    state: State<'_, AppState>,
+    filepath: String,
+) -> Result<(String, String, String), String> {
+    let git_manager = state.git_manager.lock().unwrap();
+
+    if let Some(git_mgr) = git_manager.as_ref() {
+        git_mgr.get_conflict_versions(&filepath)
+            .map_err(|e| e.to_string())
+    } else {
+        Err("Git 未初始化".to_string())
+    }
+}
+
+#[tauri::command]
+async fn resolve_conflict(
+    state: State<'_, AppState>,
+    filepath: String,
+    content: String,
+) -> Result<String, String> {
+    let git_manager = state.git_manager.lock().unwrap();
+
+    if let Some(git_mgr) = git_manager.as_ref() {
+        git_mgr.resolve_conflict(&filepath, &content)
+            .map_err(|e| e.to_string())?;
+        Ok("冲突已解决".to_string())
+    } else {
+        Err("Git 未初始化".to_string())
+    }
+}
+
+#[tauri::command]
+async fn complete_merge(
+    state: State<'_, AppState>,
+    message: String,
+) -> Result<String, String> {
+    let git_manager = state.git_manager.lock().unwrap();
+
+    if let Some(git_mgr) = git_manager.as_ref() {
+        git_mgr.complete_merge(&message)
+            .map_err(|e| e.to_string())?;
+        Ok("合并完成".to_string())
+    } else {
+        Err("Git 未初始化".to_string())
+    }
+}
+
+#[tauri::command]
+async fn upload_attachment(
+    state: State<'_, AppState>,
+    year: String,
+    month: String,
+    filename: String,
+    data: Vec<u8>,
+) -> Result<String, String> {
+    let file_manager = state.file_manager.lock().unwrap();
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        file_manager
+            .upload_attachment(&cfg.local_path, &year, &month, &filename, &data)
+            .map_err(|e| e.to_string())
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppState {
@@ -209,6 +301,12 @@ fn main() {
             clone_repo,
             detect_git_config,
             is_git_repo,
+            upload_attachment,
+            has_conflicts,
+            get_conflict_files,
+            get_conflict_versions,
+            resolve_conflict,
+            complete_merge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

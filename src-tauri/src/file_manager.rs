@@ -58,4 +58,33 @@ impl FileManager {
         files.sort();
         Ok(files)
     }
+
+    /// 上传附件到 assets 目录
+    /// 返回相对路径用于 Markdown 引用
+    pub fn upload_attachment(
+        &self,
+        base_path: &str,
+        year: &str,
+        month: &str,
+        filename: &str,
+        data: &[u8],
+    ) -> Result<String> {
+        // 构建 assets 目录路径: 年/月/assets/
+        let assets_dir = Path::new(base_path)
+            .join(year)
+            .join(month)
+            .join("assets");
+
+        // 确保目录存在
+        fs::create_dir_all(&assets_dir)?;
+
+        // 构建完整文件路径
+        let file_path = assets_dir.join(filename);
+
+        // 写入文件
+        fs::write(&file_path, data)?;
+
+        // 返回相对路径: assets/filename
+        Ok(format!("assets/{}", filename))
+    }
 }
