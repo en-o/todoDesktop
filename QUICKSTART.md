@@ -52,11 +52,11 @@ sudo dnf install -y \
 
 ```bash
 # 如果从仓库克隆
-git clone https://github.com/yourusername/todo-desktop-app.git
-cd todo-desktop-app
+git clone https://github.com/yourusername/todoDesktop.git
+cd todoDesktop
 
 # 或者使用已创建的项目
-cd todo-desktop-app
+cd todoDesktop
 ```
 
 ### 2. 安装依赖
@@ -101,7 +101,7 @@ npm run tauri:dev
 2. **生成访问令牌**:
    - 访问 https://github.com/settings/tokens
    - 点击 "Generate new token" → "Generate new token (classic)"
-   - 名称: `todo-desktop-app`
+   - 名称: `todoDesktop`
    - 勾选权限: `repo` (完整仓库权限)
    - 点击 "Generate token"
    - **复制令牌** (只显示一次!)
@@ -221,7 +221,7 @@ npm run tauri:build
 
 ## 获取帮助
 
-- 提交 Issue: https://github.com/yourusername/todo-desktop-app/issues
+- 提交 Issue: https://github.com/yourusername/todoDesktop/issues
 - 查看文档: DEVELOPMENT.md
 - Tauri 官方文档: https://tauri.app/
 

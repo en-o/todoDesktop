@@ -1,5 +1,5 @@
 [package]
-name = "todo-desktop-app"
+name = "todo-desktop"
 version = "1.0.0"
 description = "基于 Git 的 Todo 桌面应用"
 authors = ["you"]

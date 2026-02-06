@@ -5,7 +5,7 @@
 ### 1. 初始化本地 Git 仓库
 
 ```bash
-cd /path/to/todo-desktop-app
+cd /path/to/todoDesktop
 
 # 初始化 Git 仓库
 git init
@@ -84,7 +84,7 @@ gh auth login
 ### 3. 推送项目
 
 ```bash
-cd /path/to/todo-desktop-app
+cd /path/to/todoDesktop
 
 # 初始化并推送到新仓库
 gh repo create en-o/todoDesktop --public --source=. --push
@@ -107,7 +107,7 @@ git push -u origin main
 
 ### 3. 添加本地仓库
 - File → Add Local Repository
-- 选择 `todo-desktop-app` 目录
+- 选择 `todoDesktop` 目录
 - 点击 "create a repository"
 
 ### 4. 发布到 GitHub

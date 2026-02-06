@@ -179,7 +179,7 @@ cargo test
 ## 项目结构
 
 ```
-todo-desktop-app/
+todoDesktop/
 ├── src/                # React 前端
 │   ├── components/     # 组件
 │   ├── pages/          # 页面

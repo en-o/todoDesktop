@@ -19,7 +19,7 @@
 ### 目录结构
 
 ```
-todo-desktop-app/
+todoDesktop/
 ├── src/                        # React 前端
 │   ├── App.tsx                 # 应用主组件
 │   ├── main.tsx                # 入口文件

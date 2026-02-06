@@ -55,7 +55,7 @@
 ## 项目结构
 
 ```
-todo-desktop-app/
+todoDesktop/
 ├── src/                    # React 前端代码
 │   ├── App.tsx
 │   ├── components/         # 组件
