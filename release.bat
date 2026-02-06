@@ -48,7 +48,7 @@ echo 当前版本: %CURRENT_VERSION%
 echo.
 
 :: 输入新版本号
-set /p NEW_VERSION="请输入新版本号 (如 1.0.1): "
+set /p NEW_VERSION="请输入新版本号 (如 0.0.2): "
 if "%NEW_VERSION%"=="" (
     echo [错误] 版本号不能为空
     pause
@@ -58,11 +58,12 @@ if "%NEW_VERSION%"=="" (
 echo.
 echo 即将执行以下操作：
 echo   1. 更新 package.json 版本为 %NEW_VERSION%
-echo   2. 更新 src-tauri/tauri.conf.json 版本为 %NEW_VERSION%
-echo   3. 更新 src-tauri/Cargo.toml 版本为 %NEW_VERSION%
-echo   4. 提交版本更新
-echo   5. 创建 Git 标签 v%NEW_VERSION%
-echo   6. 推送到远程仓库触发自动构建
+echo   2. 更新 package-lock.json 版本为 %NEW_VERSION%
+echo   3. 更新 src-tauri/tauri.conf.json 版本为 %NEW_VERSION%
+echo   4. 更新 src-tauri/Cargo.toml 版本为 %NEW_VERSION%
+echo   5. 提交版本更新
+echo   6. 创建 Git 标签 v%NEW_VERSION%
+echo   7. 推送到远程仓库触发自动构建
 echo.
 set /p CONFIRM="确认继续？(y/n): "
 if /i not "%CONFIRM%"=="y" (
@@ -72,32 +73,38 @@ if /i not "%CONFIRM%"=="y" (
 )
 
 echo.
-echo [1/6] 更新 package.json...
-powershell -Command "(Get-Content package.json) -replace '\"version\": \"[^\"]+\"', '\"version\": \"%NEW_VERSION%\"' | Set-Content package.json"
+echo [1/7] 更新 package.json...
+powershell -Command "(Get-Content package.json) -replace '\"version\": \"[^\"]+\"', '\"version\": \"%NEW_VERSION%\"' | Set-Content package.json -Encoding UTF8"
 if errorlevel 1 (
     echo [错误] 更新 package.json 失败
     pause
     exit /b 1
 )
 
-echo [2/6] 更新 src-tauri/tauri.conf.json...
-powershell -Command "$json = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json; $json.package.version = '%NEW_VERSION%'; $json | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json"
+echo [2/7] 更新 package-lock.json...
+powershell -Command "$json = Get-Content package-lock.json -Raw | ConvertFrom-Json; $json.version = '%NEW_VERSION%'; if ($json.packages -and $json.packages.'') { $json.packages.''.version = '%NEW_VERSION%' }; $json | ConvertTo-Json -Depth 100 | Set-Content package-lock.json -Encoding UTF8"
+if errorlevel 1 (
+    echo [警告] 更新 package-lock.json 失败，跳过
+)
+
+echo [3/7] 更新 src-tauri/tauri.conf.json...
+powershell -Command "$json = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json; $json.package.version = '%NEW_VERSION%'; $json | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8"
 if errorlevel 1 (
     echo [错误] 更新 tauri.conf.json 失败
     pause
     exit /b 1
 )
 
-echo [3/6] 更新 src-tauri/Cargo.toml...
-powershell -Command "(Get-Content src-tauri/Cargo.toml) -replace '^version = \"[^\"]+\"', 'version = \"%NEW_VERSION%\"' | Set-Content src-tauri/Cargo.toml"
+echo [4/7] 更新 src-tauri/Cargo.toml...
+powershell -Command "(Get-Content src-tauri/Cargo.toml) -replace '^version = \"[^\"]+\"', 'version = \"%NEW_VERSION%\"' | Set-Content src-tauri/Cargo.toml -Encoding UTF8"
 if errorlevel 1 (
     echo [错误] 更新 Cargo.toml 失败
     pause
     exit /b 1
 )
 
-echo [4/6] 提交版本更新...
-git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+echo [5/7] 提交版本更新...
+git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
 git commit -m "chore: bump version to %NEW_VERSION%"
 if errorlevel 1 (
     echo [错误] 提交失败
@@ -105,7 +112,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [5/6] 创建 Git 标签 v%NEW_VERSION%...
+echo [6/7] 创建 Git 标签 v%NEW_VERSION%...
 git tag -a "v%NEW_VERSION%" -m "Release v%NEW_VERSION%"
 if errorlevel 1 (
     echo [错误] 创建标签失败
@@ -113,7 +120,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [6/6] 推送到远程仓库...
+echo [7/7] 推送到远程仓库...
 git push origin main
 git push origin "v%NEW_VERSION%"
 if errorlevel 1 (

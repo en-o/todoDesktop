@@ -1,6 +1,6 @@
 [package]
 name = "todo-desktop"
-version = "1.0.0"
+version = "0.0.1"
 description = "基于 Git 的 Todo 桌面应用"
 authors = ["you"]
 license = ""
@@ -20,7 +20,6 @@ git2 = "0.18"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
-tauri-plugin-single-instance = "0.0"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
