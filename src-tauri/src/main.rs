@@ -146,7 +146,7 @@ async fn save_config(
 
 #[tauri::command]
 async fn load_config(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<Option<Config>, String> {
     let config_path = app_handle

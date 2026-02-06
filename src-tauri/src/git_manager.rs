@@ -1,4 +1,4 @@
-use git2::{Cred, Direction, FetchOptions, IndexAddOption, PushOptions, Remote, RemoteCallbacks, Repository, Signature};
+use git2::{Cred, FetchOptions, PushOptions, RemoteCallbacks, Repository, Signature};
 use anyhow::{Result, anyhow};
 use std::path::Path;
 use crate::config::Config;
