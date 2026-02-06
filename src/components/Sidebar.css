@@ -1,0 +1,75 @@
+.sidebar {
+  width: 280px;
+  height: 100vh;
+  background: #fff;
+  border-right: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sidebar-header .app-title {
+  font-size: 18px;
+  color: #1890ff;
+}
+
+.sidebar-actions {
+  padding: 16px;
+}
+
+.sidebar-calendar {
+  flex: 1;
+  padding: 0 8px;
+  overflow-y: auto;
+}
+
+.sidebar-calendar .ant-picker-calendar {
+  background: transparent;
+}
+
+.sidebar-calendar .ant-picker-calendar-header {
+  padding: 8px 8px 4px;
+}
+
+.sidebar-calendar .ant-picker-panel {
+  background: transparent;
+  border: none;
+}
+
+.sidebar-calendar .ant-picker-cell {
+  padding: 2px 0;
+}
+
+.sidebar-calendar .ant-picker-cell-inner {
+  min-width: 28px;
+  height: 28px;
+  line-height: 28px;
+  border-radius: 4px;
+}
+
+.sidebar-calendar .ant-picker-cell-selected .ant-picker-cell-inner {
+  background: #1890ff !important;
+}
+
+.sidebar-calendar .ant-picker-cell-today .ant-picker-cell-inner::before {
+  border-color: #1890ff !important;
+  border-radius: 4px;
+}
+
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.todo-dot {
+  width: 4px;
+  height: 4px;
+  background: #52c41a;
+  border-radius: 50%;
+  margin: 2px auto 0;
+}

@@ -25,3 +25,13 @@ impl Default for Config {
         }
     }
 }
+
+/// 从现有 Git 仓库检测到的配置信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitInfo {
+    pub user_name: Option<String>,
+    pub user_email: Option<String>,
+    pub remote_url: Option<String>,
+    pub git_provider: Option<String>,
+}

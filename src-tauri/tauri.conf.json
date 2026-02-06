@@ -57,7 +57,11 @@
       "targets": "all",
       "identifier": "com.todo.desktop",
       "icon": [
-        "icons/icon.svg"
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
       ]
     },
     "security": {

@@ -1,23 +1,35 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Space, Typography, Input, message, Tabs } from 'antd';
-import { LeftOutlined, SaveOutlined } from '@ant-design/icons';
+import { useParams } from 'react-router-dom';
+import { Button, Typography, Input, message, Tabs, Spin } from 'antd';
+import { SaveOutlined } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/tauri';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import dayjs from 'dayjs';
+import { useConfigStore } from '../store/configStore';
 import './DayView.css';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 export default function DayView() {
-  const navigate = useNavigate();
-  const { year, month, day } = useParams();
+  const { date } = useParams<{ date: string }>();
+  const { isConfigured } = useConfigStore();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const parsedDate = dayjs(date);
+  const year = parsedDate.format('YYYY');
+  const month = parsedDate.format('MM');
+  const day = parsedDate.format('DD');
+
   const handleSave = useCallback(async () => {
+    if (!isConfigured) {
+      message.warning('请先在设置中配置本地数据目录');
+      return;
+    }
+
     setSaving(true);
     try {
       const filepath = `${year}/${month}/${day}.md`;
@@ -28,11 +40,15 @@ export default function DayView() {
     } finally {
       setSaving(false);
     }
-  }, [year, month, day, content]);
+  }, [year, month, day, content, isConfigured]);
 
   useEffect(() => {
-    loadContent();
-  }, [year, month, day]);
+    if (isConfigured && date) {
+      loadContent();
+    } else {
+      setContent(getDefaultContent());
+    }
+  }, [date, isConfigured]);
 
   // 快捷键 Ctrl+S 保存
   useEffect(() => {
@@ -54,7 +70,6 @@ export default function DayView() {
       const data = await invoke<string>('read_file', { filepath });
       setContent(data || getDefaultContent());
     } catch (error) {
-      message.error('加载失败');
       setContent(getDefaultContent());
     } finally {
       setLoading(false);
@@ -66,18 +81,13 @@ export default function DayView() {
 
 ## 待办事项
 
-- [ ] 
+- [ ]
 
 ## 笔记
 
 
-## 附件
 
 `;
-  };
-
-  const handleBackToMonth = () => {
-    navigate(`/month/${year}/${month}`);
   };
 
   const items = [
@@ -89,8 +99,8 @@ export default function DayView() {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="使用 Markdown 格式编写..."
-          style={{ minHeight: 'calc(100vh - 300px)' }}
           className="markdown-editor"
+          disabled={!isConfigured}
         />
       ),
     },
@@ -107,28 +117,35 @@ export default function DayView() {
     },
   ];
 
+  const weekday = ['日', '一', '二', '三', '四', '五', '六'][parsedDate.day()];
+
   return (
     <div className="day-view">
       <div className="day-header">
-        <Space>
-          <Button onClick={handleBackToMonth} icon={<LeftOutlined />}>
-            返回月视图
-          </Button>
-          <Title level={2} style={{ margin: 0 }}>
-            {year} 年 {month} 月 {day} 日
+        <div className="day-title">
+          <Title level={3} style={{ margin: 0 }}>
+            {parsedDate.format('YYYY年M月D日')}
           </Title>
-        </Space>
+          <Text type="secondary">星期{weekday}</Text>
+        </div>
         <Button
           type="primary"
           icon={<SaveOutlined />}
           onClick={handleSave}
           loading={saving}
+          disabled={!isConfigured}
         >
           保存
         </Button>
       </div>
 
-      <Tabs defaultActiveKey="edit" items={items} />
+      {loading ? (
+        <div className="loading-container">
+          <Spin size="large" />
+        </div>
+      ) : (
+        <Tabs defaultActiveKey="edit" items={items} className="editor-tabs" />
+      )}
     </div>
   );
 }

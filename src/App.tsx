@@ -2,9 +2,8 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ConfigProvider, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import dayjs from 'dayjs';
 import Layout from './components/Layout';
-import YearView from './pages/YearView';
-import MonthView from './pages/MonthView';
 import DayView from './pages/DayView';
 import Settings from './pages/Settings';
 import { useConfigStore } from './store/configStore';
@@ -30,14 +29,13 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigate]);
 
+  const today = dayjs().format('YYYY-MM-DD');
+
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        <Route index element={<Navigate to="/year" replace />} />
-        <Route path="year" element={<YearView />} />
-        <Route path="year/:year" element={<YearView />} />
-        <Route path="month/:year/:month" element={<MonthView />} />
-        <Route path="day/:year/:month/:day" element={<DayView />} />
+        <Route index element={<Navigate to={`/day/${today}`} replace />} />
+        <Route path="day/:date" element={<DayView />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>

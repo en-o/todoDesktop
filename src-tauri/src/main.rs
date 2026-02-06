@@ -7,7 +7,7 @@ mod config;
 
 use git_manager::GitManager;
 use file_manager::FileManager;
-use config::Config;
+use config::{Config, GitInfo};
 use std::sync::Mutex;
 use tauri::State;
 
@@ -154,18 +154,40 @@ async fn load_config(
         .app_data_dir()
         .ok_or("无法获取配置目录")?
         .join("config.json");
-    
+
     if !config_path.exists() {
         return Ok(None);
     }
-    
+
     let config_str = std::fs::read_to_string(&config_path)
         .map_err(|e| e.to_string())?;
-    
+
     let config: Config = serde_json::from_str(&config_str)
         .map_err(|e| e.to_string())?;
-    
+
     Ok(Some(config))
+}
+
+#[tauri::command]
+async fn clone_repo(
+    url: String,
+    path: String,
+    token: Option<String>,
+) -> Result<String, String> {
+    // 返回实际克隆的路径
+    GitManager::clone_repo(&url, &path, token.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn detect_git_config(path: String) -> Result<Option<GitInfo>, String> {
+    GitManager::detect_config(&path)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn is_git_repo(path: String) -> Result<bool, String> {
+    Ok(GitManager::is_git_repo(&path))
 }
 
 fn main() {
@@ -184,6 +206,9 @@ fn main() {
             git_pull,
             save_config,
             load_config,
+            clone_repo,
+            detect_git_config,
+            is_git_repo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

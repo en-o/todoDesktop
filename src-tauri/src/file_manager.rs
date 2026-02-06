@@ -58,15 +58,4 @@ impl FileManager {
         files.sort();
         Ok(files)
     }
-    
-    pub fn exists(&self, base_path: &str, filepath: &str) -> bool {
-        let full_path = Path::new(base_path).join(filepath);
-        full_path.exists()
-    }
-    
-    pub fn delete_file(&self, base_path: &str, filepath: &str) -> Result<()> {
-        let full_path = Path::new(base_path).join(filepath);
-        fs::remove_file(full_path)?;
-        Ok(())
-    }
 }
