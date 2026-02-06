@@ -9,7 +9,10 @@ use git_manager::GitManager;
 use file_manager::FileManager;
 use config::{Config, GitInfo};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{
+    CustomMenuItem, Manager, State, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    SystemTrayMenuItem, WindowEvent,
+};
 
 // 全局状态
 struct AppState {
@@ -283,7 +286,66 @@ async fn upload_attachment(
 }
 
 fn main() {
+    // 创建系统托盘菜单
+    let show = CustomMenuItem::new("show".to_string(), "显示主窗口");
+    let quit = CustomMenuItem::new("quit".to_string(), "退出程序");
+    let tray_menu = SystemTrayMenu::new()
+        .add_item(show)
+        .add_native_item(SystemTrayMenuItem::Separator)
+        .add_item(quit);
+
+    let system_tray = SystemTray::new().with_menu(tray_menu);
+
     tauri::Builder::default()
+        // 单实例插件：防止重复打开应用
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // 当尝试启动第二个实例时，聚焦到已有窗口
+            if let Some(window) = app.get_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
+        .system_tray(system_tray)
+        .on_system_tray_event(|app, event| match event {
+            SystemTrayEvent::LeftClick { .. } => {
+                // 单击托盘图标显示窗口
+                if let Some(window) = app.get_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            }
+            SystemTrayEvent::DoubleClick { .. } => {
+                // 双击托盘图标显示窗口
+                if let Some(window) = app.get_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            }
+            SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
+                "show" => {
+                    if let Some(window) = app.get_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                    }
+                }
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
+            },
+            _ => {}
+        })
+        .on_window_event(|event| {
+            // 点击关闭按钮时隐藏到托盘而不是退出
+            if let WindowEvent::CloseRequested { api, .. } = event.event() {
+                event.window().hide().unwrap();
+                api.prevent_close();
+            }
+        })
         .manage(AppState {
             git_manager: Mutex::new(None),
             file_manager: Mutex::new(FileManager::new()),
