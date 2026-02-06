@@ -9,8 +9,16 @@
   margin-bottom: 32px;
 }
 
+.date-cell-wrapper {
+  position: relative;
+}
+
 .date-cell-content {
   display: flex;
   justify-content: center;
   margin-top: 4px;
+}
+
+.ant-picker-cell-inner {
+  position: relative;
 }

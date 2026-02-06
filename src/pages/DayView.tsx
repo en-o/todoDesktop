@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Space, Typography, Input, message, Tabs } from 'antd';
 import { LeftOutlined, SaveOutlined } from '@ant-design/icons';
@@ -17,9 +17,35 @@ export default function DayView() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      const filepath = `${year}/${month}/${day}.md`;
+      await invoke('write_file', { filepath, content });
+      message.success('保存成功');
+    } catch (error) {
+      message.error(`保存失败: ${error}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [year, month, day, content]);
+
   useEffect(() => {
     loadContent();
   }, [year, month, day]);
+
+  // 快捷键 Ctrl+S 保存
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave]);
 
   const loadContent = async () => {
     setLoading(true);
@@ -48,19 +74,6 @@ export default function DayView() {
 ## 附件
 
 `;
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const filepath = `${year}/${month}/${day}.md`;
-      await invoke('write_file', { filepath, content });
-      message.success('保存成功');
-    } catch (error) {
-      message.error(`保存失败: ${error}`);
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleBackToMonth = () => {

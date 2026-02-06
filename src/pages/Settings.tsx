@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Form, Input, Button, Select, Switch, Card, message, Space } from 'antd';
+import { Form, Input, Button, Select, Switch, Card, message, Space, Alert } from 'antd';
 import { FolderOpenOutlined, SaveOutlined } from '@ant-design/icons';
 import { useConfigStore, Config } from '../store/configStore';
 import { open } from '@tauri-apps/api/dialog';
@@ -8,7 +8,7 @@ import './Settings.css';
 const { Option } = Select;
 
 export default function Settings() {
-  const { config, saveConfig, initGit } = useConfigStore();
+  const { config, saveConfig, initGit, isConfigured } = useConfigStore();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
@@ -53,7 +53,16 @@ export default function Settings() {
 
   return (
     <div className="settings-page">
-      <Card title="⚙️ 设置" style={{ maxWidth: 800, margin: '0 auto' }}>
+      {!isConfigured && (
+        <Alert
+          message="欢迎使用 Todo Desktop"
+          description="这是您首次使用本应用，请先完成以下配置。配置完成后即可开始使用日历管理您的 Todo。"
+          type="info"
+          showIcon
+          style={{ maxWidth: 800, margin: '0 auto 16px' }}
+        />
+      )}
+      <Card title="设置" style={{ maxWidth: 800, margin: '0 auto' }}>
         <Form
           form={form}
           layout="vertical"
@@ -141,7 +150,7 @@ export default function Settings() {
 
         <Card
           type="inner"
-          title="💡 使用提示"
+          title="使用提示"
           style={{ marginTop: 24, background: '#f9f9f9' }}
         >
           <ul>
@@ -157,6 +166,17 @@ export default function Settings() {
             <li>
               <strong>GitHub Pages</strong>: 仓库需要开启 Pages 功能，从 main 分支发布
             </li>
+          </ul>
+        </Card>
+
+        <Card
+          type="inner"
+          title="快捷键"
+          style={{ marginTop: 16, background: '#f9f9f9' }}
+        >
+          <ul>
+            <li><code>Ctrl/Cmd + S</code> - 保存当前 Todo</li>
+            <li><code>Ctrl/Cmd + ,</code> - 打开设置页面</li>
           </ul>
         </Card>
       </Card>

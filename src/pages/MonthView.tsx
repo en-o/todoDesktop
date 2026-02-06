@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Space, Typography, Calendar, Badge } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
@@ -52,18 +52,30 @@ export default function MonthView() {
     navigate(`/day/${date.year()}/${date.format('MM')}/${date.format('DD')}`);
   };
 
-  const dateCellRender = (date: Dayjs) => {
+  const cellRender = (date: Dayjs, info: { type: string; originNode: React.ReactNode }) => {
+    if (info.type !== 'date') {
+      return info.originNode;
+    }
+
+    // 只显示当前月份的 todo 标记
+    if (date.month() + 1 !== parseInt(month || '0')) {
+      return info.originNode;
+    }
+
     const day = date.date();
     const hasTodo = daysWithTodos.has(day);
-    
+
     if (hasTodo) {
       return (
-        <div className="date-cell-content">
-          <Badge status="success" />
+        <div className="date-cell-wrapper">
+          {info.originNode}
+          <div className="date-cell-content">
+            <Badge status="success" />
+          </div>
         </div>
       );
     }
-    return null;
+    return info.originNode;
   };
 
   return (
@@ -82,7 +94,7 @@ export default function MonthView() {
       <Calendar
         value={currentDate}
         onSelect={handleDateSelect}
-        cellRender={dateCellRender}
+        cellRender={cellRender}
         fullscreen={false}
       />
     </div>
