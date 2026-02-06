@@ -34,7 +34,7 @@ if not exist "src-tauri\tauri.conf.json" (
     exit /b 1
 )
 
-for /f "tokens=*" %%i in ('node -e "console.log(JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')).package.version)"') do set VERSION=%%i
+for /f "tokens=*" %%i in ('node -e "console.log(JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8').replace(/^\uFEFF/,'')).package.version)"') do set VERSION=%%i
 
 if "%VERSION%"=="" (
     echo [ERROR] Could not read version

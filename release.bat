@@ -70,7 +70,7 @@ if not exist "package.json" (
     exit /b 1
 )
 
-node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version='%VERSION%';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');"
+node -e "const fs=require('fs');let s=fs.readFileSync('package.json','utf8').replace(/^\uFEFF/,'');const p=JSON.parse(s);p.version='%VERSION%';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');"
 if errorlevel 1 (
     echo [ERROR] Failed to update package.json
     exit /b 1
@@ -93,7 +93,7 @@ if not exist "src-tauri\tauri.conf.json" (
     exit /b 1
 )
 
-node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));c.package.version='%VERSION%';fs.writeFileSync('src-tauri/tauri.conf.json',JSON.stringify(c,null,2)+'\n');"
+node -e "const fs=require('fs');let s=fs.readFileSync('src-tauri/tauri.conf.json','utf8').replace(/^\uFEFF/,'');const c=JSON.parse(s);c.package.version='%VERSION%';fs.writeFileSync('src-tauri/tauri.conf.json',JSON.stringify(c,null,2)+'\n');"
 if errorlevel 1 (
     echo [ERROR] Failed to update tauri.conf.json
     exit /b 1
@@ -107,7 +107,7 @@ if not exist "src-tauri\Cargo.toml" (
     exit /b 1
 )
 
-node -e "const fs=require('fs');let c=fs.readFileSync('src-tauri/Cargo.toml','utf8');c=c.replace(/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"/m,'version = \"%VERSION%\"');fs.writeFileSync('src-tauri/Cargo.toml',c);"
+node -e "const fs=require('fs');let c=fs.readFileSync('src-tauri/Cargo.toml','utf8').replace(/^\uFEFF/,'');c=c.replace(/^version = \"[0-9]+\.[0-9]+\.[0-9]+\"/m,'version = \"%VERSION%\"');fs.writeFileSync('src-tauri/Cargo.toml',c);"
 if errorlevel 1 (
     echo [ERROR] Failed to update Cargo.toml
     exit /b 1

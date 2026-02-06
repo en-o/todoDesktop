@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "todo-desktop"
 version = "0.0.1"
 description = "基于 Git 的 Todo 桌面应用"
