@@ -47,13 +47,21 @@ export default function DayView() {
       return;
     }
 
+    // 如果没有改动，不需要保存和同步
+    if (!isDirty) {
+      if (!silent) {
+        message.info('没有需要保存的改动');
+      }
+      return;
+    }
+
     setSaving(true);
     try {
       const filepath = getFilePath();
       await invoke('write_file', { filepath, content });
       setIsDirty(false);
 
-      // 保存后自动同步
+      // 有改动才同步到远程
       await syncToRemote();
 
       if (!silent) {
@@ -66,7 +74,7 @@ export default function DayView() {
     } finally {
       setSaving(false);
     }
-  }, [content, isConfigured, getFilePath, syncToRemote]);
+  }, [content, isConfigured, isDirty, getFilePath, syncToRemote]);
 
   const handleContentChange = useCallback((value: string) => {
     setContent(value);

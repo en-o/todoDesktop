@@ -3,6 +3,7 @@
   flex-direction: column;
   height: 100%;
   background: #fff;
+  overflow: visible;
 }
 
 .day-header {
@@ -15,6 +16,7 @@
   flex-shrink: 0;
   position: relative;
   z-index: 1;
+  overflow: visible;
 }
 
 .day-title {
@@ -39,7 +41,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   z-index: 2;
 }

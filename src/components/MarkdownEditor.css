@@ -24,6 +24,7 @@
   min-height: 40px !important;
   position: relative !important;
   z-index: 10 !important;
+  overflow: visible !important;
 }
 
 .vditor-toolbar__item {
@@ -42,13 +43,30 @@
   height: 16px !important;
 }
 
-/* 工具栏提示框 z-index */
-.vditor-hint,
-.vditor-tip,
-.vditor-panel,
-.vditor-toolbar .vditor-tooltipped::after,
+/* 工具栏提示框 - 强制显示在下方 */
+.vditor-toolbar .vditor-tooltipped::before,
+.vditor-toolbar .vditor-tooltipped::after {
+  z-index: 1000 !important;
+}
+
+/* 将提示框改为显示在下方 */
+.vditor-toolbar .vditor-tooltipped {
+  position: relative !important;
+}
+
+.vditor-toolbar .vditor-tooltipped::after {
+  top: 100% !important;
+  bottom: auto !important;
+  margin-top: 6px !important;
+  margin-bottom: 0 !important;
+}
+
 .vditor-toolbar .vditor-tooltipped::before {
-  z-index: 100 !important;
+  top: calc(100% + 2px) !important;
+  bottom: auto !important;
+  border-top-color: transparent !important;
+  border-bottom-color: #1a1a1a !important;
+  border-width: 0 6px 6px 6px !important;
 }
 
 .vditor-toolbar__item button:hover {
