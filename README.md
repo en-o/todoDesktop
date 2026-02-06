@@ -280,4 +280,4 @@ const content = await invoke<string>('read_todo', { date: '2024-01-01' });
 
 ## License
 
-MIT
+[Apache 2.0](LICENSE)
