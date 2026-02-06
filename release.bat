@@ -80,7 +80,7 @@ if /i not "%CONFIRM%"=="y" (
 
 echo.
 echo [1/7] Updating package.json...
-powershell -Command "(Get-Content package.json -Encoding UTF8) -replace '\"version\": \"[^\"]+\"', '\"version\": \"%NEW_VERSION%\"' | Set-Content package.json -Encoding UTF8"
+powershell -NoProfile -Command "$content = Get-Content package.json -Raw -Encoding UTF8; $content = $content -replace '\"version\": \"[^\"]+\"', '\"version\": \"%NEW_VERSION%\"'; Set-Content package.json -Value $content -Encoding UTF8"
 if errorlevel 1 (
     echo [Error] Failed to update package.json
     pause
@@ -88,13 +88,13 @@ if errorlevel 1 (
 )
 
 echo [2/7] Updating package-lock.json...
-powershell -Command "$json = Get-Content package-lock.json -Raw -Encoding UTF8 | ConvertFrom-Json; $json.version = '%NEW_VERSION%'; if ($json.packages -and $json.packages.'') { $json.packages.''.version = '%NEW_VERSION%' }; $json | ConvertTo-Json -Depth 100 | Set-Content package-lock.json -Encoding UTF8"
+powershell -NoProfile -Command "$json = Get-Content package-lock.json -Raw -Encoding UTF8 | ConvertFrom-Json; $json.version = '%NEW_VERSION%'; if ($json.packages -and $json.packages.'') { $json.packages.''.version = '%NEW_VERSION%' }; $json | ConvertTo-Json -Depth 100 | Set-Content package-lock.json -Encoding UTF8"
 if errorlevel 1 (
     echo [Warning] Failed to update package-lock.json, skipping
 )
 
 echo [3/7] Updating src-tauri/tauri.conf.json...
-powershell -Command "$json = Get-Content src-tauri/tauri.conf.json -Raw -Encoding UTF8 | ConvertFrom-Json; $json.package.version = '%NEW_VERSION%'; $json | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8"
+powershell -NoProfile -Command "$json = Get-Content src-tauri/tauri.conf.json -Raw -Encoding UTF8 | ConvertFrom-Json; $json.package.version = '%NEW_VERSION%'; $json | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json -Encoding UTF8"
 if errorlevel 1 (
     echo [Error] Failed to update tauri.conf.json
     pause
@@ -102,7 +102,7 @@ if errorlevel 1 (
 )
 
 echo [4/7] Updating src-tauri/Cargo.toml...
-powershell -Command "(Get-Content src-tauri/Cargo.toml -Encoding UTF8) -replace '^version = \"[^\"]+\"', 'version = \"%NEW_VERSION%\"' | Set-Content src-tauri/Cargo.toml -Encoding UTF8"
+powershell -NoProfile -Command "$content = Get-Content src-tauri/Cargo.toml -Raw -Encoding UTF8; $content = $content -replace '^version = \"[^\"]+\"', 'version = \"%NEW_VERSION%\"'; Set-Content src-tauri/Cargo.toml -Value $content -Encoding UTF8"
 if errorlevel 1 (
     echo [Error] Failed to update Cargo.toml
     pause
