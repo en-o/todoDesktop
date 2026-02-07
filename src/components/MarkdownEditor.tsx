@@ -1,6 +1,7 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { invoke, convertFileSrc } from '@tauri-apps/api/tauri';
 import { message } from 'antd';
+import { useConfigStore } from '../store/configStore';
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -360,6 +361,7 @@ export default function MarkdownEditor({
   month,
   day,
 }: MarkdownEditorProps) {
+  const { config } = useConfigStore();
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [completed, setCompleted] = useState<TodoItem[]>([]);
   const [notes, setNotes] = useState('');
@@ -374,6 +376,24 @@ export default function MarkdownEditor({
   const isEditingRef = useRef(false);
   const lastDateRef = useRef('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 自定义 Markdown 组件，处理本地图片路径
+  const markdownComponents = useMemo(() => ({
+    img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+      let imageSrc = src || '';
+
+      // 如果是相对路径（assets/xxx 或 ./assets/xxx），转换为 Tauri 文件 URL
+      if (config?.localPath && src && !src.startsWith('http') && !src.startsWith('data:')) {
+        // 移除开头的 ./ 如果存在
+        const cleanPath = src.replace(/^\.\//, '');
+        // 构建完整的本地文件路径
+        const fullPath = `${config.localPath}/${year}/${month}/${cleanPath}`;
+        imageSrc = convertFileSrc(fullPath);
+      }
+
+      return <img src={imageSrc} alt={alt || ''} {...props} />;
+    },
+  }), [config?.localPath, year, month]);
 
   // DnD sensors
   const sensors = useSensors(
@@ -466,18 +486,43 @@ export default function MarkdownEditor({
     if (isCompleted) {
       // 从完成区切换
       if (parentId) {
-        // 完成区的步骤切换
-        const newCompleted = completed.map(parent => {
-          if (parent.id === parentId) {
-            const newChildren = parent.children.map(child =>
-              child.id === id ? { ...child, checked: !child.checked } : child
-            );
-            return { ...parent, children: newChildren };
+        // 完成区的步骤切换 - 如果取消勾选步骤，整个任务应该移回待办区
+        const parent = completed.find(t => t.id === parentId);
+        if (parent) {
+          const child = parent.children.find(c => c.id === id);
+          if (child && child.checked) {
+            // 取消勾选步骤 -> 将整个任务移回待办区
+            const newItem = {
+              ...parent,
+              checked: false,
+              children: parent.children.map(c =>
+                c.id === id ? { ...c, checked: false } : c
+              ),
+            };
+            const newCompleted = completed.filter(t => t.id !== parentId);
+            const newTodos = [...todos, newItem];
+            setCompleted(newCompleted);
+            setTodos(newTodos);
+            syncToParent(newTodos, newCompleted, notes);
+            message.info('步骤未完成，任务已移回待办事项');
+            return;
+          } else {
+            // 勾选步骤
+            const newCompleted = completed.map(p => {
+              if (p.id === parentId) {
+                return {
+                  ...p,
+                  children: p.children.map(c =>
+                    c.id === id ? { ...c, checked: true } : c
+                  ),
+                };
+              }
+              return p;
+            });
+            setCompleted(newCompleted);
+            syncToParent(todos, newCompleted, notes);
           }
-          return parent;
-        });
-        setCompleted(newCompleted);
-        syncToParent(todos, newCompleted, notes);
+        }
       } else {
         // 取消完成父任务 - 移回待办区，同时取消所有步骤的完成状态
         const item = completed.find(t => t.id === id);
@@ -920,7 +965,7 @@ export default function MarkdownEditor({
           {detailPreviewMode ? (
             <div className="detail-notes-preview markdown-preview">
               {selectedTodo.subContent ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {selectedTodo.subContent}
                 </ReactMarkdown>
               ) : (
@@ -1072,7 +1117,7 @@ export default function MarkdownEditor({
               {previewMode ? (
                 <div className="notes-preview markdown-preview">
                   {notes ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {notes}
                     </ReactMarkdown>
                   ) : (
