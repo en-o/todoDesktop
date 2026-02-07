@@ -8,7 +8,29 @@ import {
   PaperClipOutlined,
   CheckOutlined,
   UnorderedListOutlined,
+  EyeOutlined,
+  EditOutlined,
+  HolderOutlined,
 } from '@ant-design/icons';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import './MarkdownEditor.css';
 
 interface MarkdownEditorProps {
@@ -176,6 +198,7 @@ function itemToMarkdown(item: TodoItem, indent: string = ''): string {
   return result;
 }
 
+// 处理笔记内容：将 ## 标题转为 ### 标题（确保最多三级标题）
 function processNotesContent(notes: string): string {
   const lines = notes.split('\n');
   const result: string[] = [];
@@ -191,8 +214,36 @@ function processNotesContent(notes: string): string {
       result.push(line);
       continue;
     }
-    if (line.match(/^##\s+/)) {
-      result.push('#' + line);
+    // 将 # 或 ## 转换为 ###
+    if (line.match(/^#{1,2}\s+/)) {
+      result.push(line.replace(/^#{1,2}/, '###'));
+    } else {
+      result.push(line);
+    }
+  }
+
+  return result.join('\n');
+}
+
+// 过滤备注中的标题（不允许任何标题）
+function filterSubContent(content: string): string {
+  const lines = content.split('\n');
+  const result: string[] = [];
+  let inCodeBlock = false;
+
+  for (const line of lines) {
+    if (line.trim().startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      result.push(line);
+      continue;
+    }
+    if (inCodeBlock) {
+      result.push(line);
+      continue;
+    }
+    // 移除标题语法，保留内容
+    if (line.match(/^#{1,6}\s+/)) {
+      result.push(line.replace(/^#{1,6}\s+/, ''));
     } else {
       result.push(line);
     }
@@ -230,6 +281,76 @@ function buildMarkdown(dateStr: string, todos: TodoItem[], completed: TodoItem[]
   return content;
 }
 
+// 可排序的任务项组件
+function SortableTaskItem({
+  item,
+  isCompleted,
+  isSelected,
+  onSelect,
+  onToggle,
+}: {
+  item: TodoItem;
+  isCompleted: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+  onToggle: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const completedChildren = item.children.filter(c => c.checked).length;
+  const totalChildren = item.children.length;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`task-item ${isSelected ? 'selected' : ''} ${isCompleted ? 'completed' : ''}`}
+      onClick={onSelect}
+    >
+      <div className="drag-handle" {...attributes} {...listeners}>
+        <HolderOutlined />
+      </div>
+      <div
+        className="task-checkbox"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+      >
+        {item.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
+      </div>
+      <div className="task-content">
+        <span className={`task-text ${item.checked ? 'checked' : ''}`}>
+          {item.text || '无标题'}
+        </span>
+        {totalChildren > 0 && (
+          <span className="task-steps-count">
+            {completedChildren}/{totalChildren} 步骤
+          </span>
+        )}
+        {item.subContent && (
+          <span className="task-has-note">
+            <PaperClipOutlined />
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function MarkdownEditor({
   value,
   onChange,
@@ -246,11 +367,25 @@ export default function MarkdownEditor({
   const [newTodoText, setNewTodoText] = useState('');
   const [activeTab, setActiveTab] = useState<'todos' | 'completed' | 'notes'>('todos');
   const [isDragging, setIsDragging] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [detailPreviewMode, setDetailPreviewMode] = useState(false);
 
   const dateStr = year && day ? `${year}-${day}` : '';
   const isEditingRef = useRef(false);
   const lastDateRef = useRef('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // 获取选中的任务
   const selectedTodo = todos.find(t => t.id === selectedId) ||
@@ -261,7 +396,6 @@ export default function MarkdownEditor({
   const isSelectedCompleted = completed.some(t => t.id === selectedId) ||
                               completed.some(t => t.children.some(c => c.id === selectedId));
 
-  // 找到选中项的父级 ID
   const findParentId = (id: string): string | undefined => {
     for (const todo of [...todos, ...completed]) {
       if (todo.children.some(c => c.id === id)) {
@@ -302,27 +436,57 @@ export default function MarkdownEditor({
     }, 100);
   }, [dateStr, onChange]);
 
-  // 切换 checkbox 状态
+  // 处理拖拽排序结束
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      if (activeTab === 'todos') {
+        const oldIndex = todos.findIndex(t => t.id === active.id);
+        const newIndex = todos.findIndex(t => t.id === over.id);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newTodos = arrayMove(todos, oldIndex, newIndex);
+          setTodos(newTodos);
+          syncToParent(newTodos, completed, notes);
+        }
+      } else if (activeTab === 'completed') {
+        const oldIndex = completed.findIndex(t => t.id === active.id);
+        const newIndex = completed.findIndex(t => t.id === over.id);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newCompleted = arrayMove(completed, oldIndex, newIndex);
+          setCompleted(newCompleted);
+          syncToParent(todos, newCompleted, notes);
+        }
+      }
+    }
+  }, [activeTab, todos, completed, notes, syncToParent]);
+
+  // 切换任务完成状态（重要：处理步骤逻辑）
   const toggleTodo = useCallback((id: string, isCompleted: boolean, parentId?: string) => {
     if (isCompleted) {
+      // 从完成区切换
       if (parentId) {
+        // 完成区的步骤切换
         const newCompleted = completed.map(parent => {
           if (parent.id === parentId) {
-            return {
-              ...parent,
-              children: parent.children.map(child =>
-                child.id === id ? { ...child, checked: !child.checked } : child
-              ),
-            };
+            const newChildren = parent.children.map(child =>
+              child.id === id ? { ...child, checked: !child.checked } : child
+            );
+            return { ...parent, children: newChildren };
           }
           return parent;
         });
         setCompleted(newCompleted);
         syncToParent(todos, newCompleted, notes);
       } else {
+        // 取消完成父任务 - 移回待办区，同时取消所有步骤的完成状态
         const item = completed.find(t => t.id === id);
         if (item) {
-          const newItem = { ...item, checked: false };
+          const newItem = {
+            ...item,
+            checked: false,
+            children: item.children.map(c => ({ ...c, checked: false })),
+          };
           const newCompleted = completed.filter(t => t.id !== id);
           const newTodos = [...todos, newItem];
           setCompleted(newCompleted);
@@ -331,24 +495,52 @@ export default function MarkdownEditor({
         }
       }
     } else {
+      // 从待办区切换
       if (parentId) {
+        // 切换步骤状态
+        let shouldMoveParent = false;
         const newTodos = todos.map(parent => {
           if (parent.id === parentId) {
-            return {
-              ...parent,
-              children: parent.children.map(child =>
-                child.id === id ? { ...child, checked: !child.checked } : child
-              ),
-            };
+            const newChildren = parent.children.map(child =>
+              child.id === id ? { ...child, checked: !child.checked } : child
+            );
+            // 检查是否所有步骤都完成了
+            const allChildrenCompleted = newChildren.every(c => c.checked);
+            if (allChildrenCompleted && newChildren.length > 0) {
+              shouldMoveParent = true;
+            }
+            return { ...parent, children: newChildren };
           }
           return parent;
         });
+
+        if (shouldMoveParent) {
+          // 所有步骤完成，自动将父任务移到完成区
+          const parentItem = newTodos.find(t => t.id === parentId);
+          if (parentItem) {
+            const completedItem = { ...parentItem, checked: true };
+            const filteredTodos = newTodos.filter(t => t.id !== parentId);
+            const newCompleted = [...completed, completedItem];
+            setTodos(filteredTodos);
+            setCompleted(newCompleted);
+            if (selectedId === parentId) setSelectedId(null);
+            syncToParent(filteredTodos, newCompleted, notes);
+            message.success('所有步骤已完成，任务已移至已完成');
+            return;
+          }
+        }
+
         setTodos(newTodos);
         syncToParent(newTodos, completed, notes);
       } else {
+        // 完成父任务 - 同时完成所有步骤
         const item = todos.find(t => t.id === id);
         if (item) {
-          const newItem = { ...item, checked: true };
+          const newItem = {
+            ...item,
+            checked: true,
+            children: item.children.map(c => ({ ...c, checked: true })),
+          };
           const newTodos = todos.filter(t => t.id !== id);
           const newCompleted = [...completed, newItem];
           setTodos(newTodos);
@@ -458,8 +650,11 @@ export default function MarkdownEditor({
     }
   }, [todos, completed, notes, syncToParent]);
 
-  // 更新备注
+  // 更新备注（过滤标题）
   const updateTodoSubContent = useCallback((id: string, subContent: string, isCompleted: boolean, parentId?: string) => {
+    // 过滤掉标题语法
+    const filteredContent = filterSubContent(subContent);
+
     if (isCompleted) {
       if (parentId) {
         const newCompleted = completed.map(parent => {
@@ -467,7 +662,7 @@ export default function MarkdownEditor({
             return {
               ...parent,
               children: parent.children.map(child =>
-                child.id === id ? { ...child, subContent } : child
+                child.id === id ? { ...child, subContent: filteredContent } : child
               ),
             };
           }
@@ -476,7 +671,7 @@ export default function MarkdownEditor({
         setCompleted(newCompleted);
         syncToParent(todos, newCompleted, notes);
       } else {
-        const newCompleted = completed.map(t => t.id === id ? { ...t, subContent } : t);
+        const newCompleted = completed.map(t => t.id === id ? { ...t, subContent: filteredContent } : t);
         setCompleted(newCompleted);
         syncToParent(todos, newCompleted, notes);
       }
@@ -487,7 +682,7 @@ export default function MarkdownEditor({
             return {
               ...parent,
               children: parent.children.map(child =>
-                child.id === id ? { ...child, subContent } : child
+                child.id === id ? { ...child, subContent: filteredContent } : child
               ),
             };
           }
@@ -496,7 +691,7 @@ export default function MarkdownEditor({
         setTodos(newTodos);
         syncToParent(newTodos, completed, notes);
       } else {
-        const newTodos = todos.map(t => t.id === id ? { ...t, subContent } : t);
+        const newTodos = todos.map(t => t.id === id ? { ...t, subContent: filteredContent } : t);
         setTodos(newTodos);
         syncToParent(newTodos, completed, notes);
       }
@@ -545,7 +740,7 @@ export default function MarkdownEditor({
     syncToParent(todos, completed, newNotes);
   }, [todos, completed, syncToParent]);
 
-  // 文件上传处理
+  // 文件上传处理（上传后同步到 git）
   const handleFileUpload = useCallback(async (files: FileList | File[]) => {
     if (!year || !month || !day || !selectedTodo) {
       message.error('请先选择一个任务');
@@ -584,8 +779,13 @@ export default function MarkdownEditor({
       const newContent = currentContent + (currentContent ? '\n' : '') + insertText;
       updateTodoSubContent(selectedTodo.id, newContent, isSelectedCompleted, selectedParentId);
       message.success(`已上传 ${results.length} 个文件`);
+
+      // 上传后触发保存，确保同步到 git
+      setTimeout(() => {
+        onSave?.();
+      }, 500);
     }
-  }, [year, month, day, selectedTodo, isSelectedCompleted, selectedParentId, updateTodoSubContent]);
+  }, [year, month, day, selectedTodo, isSelectedCompleted, selectedParentId, updateTodoSubContent, onSave]);
 
   // 拖拽事件处理
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -610,53 +810,9 @@ export default function MarkdownEditor({
     }
   }, [handleFileUpload]);
 
-  // 渲染任务列表项
-  const renderTaskItem = (item: TodoItem, isCompleted: boolean, parentId?: string) => {
-    const isSelected = selectedId === item.id;
-    const completedChildren = item.children.filter(c => c.checked).length;
-    const totalChildren = item.children.length;
-
-    return (
-      <div
-        key={item.id}
-        className={`task-item ${isSelected ? 'selected' : ''} ${isCompleted ? 'completed' : ''}`}
-        onClick={() => setSelectedId(item.id)}
-      >
-        <div
-          className="task-checkbox"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleTodo(item.id, isCompleted, parentId);
-          }}
-        >
-          {item.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
-        </div>
-        <div className="task-content">
-          <span className={`task-text ${item.checked ? 'checked' : ''}`}>
-            {item.text || '无标题'}
-          </span>
-          {totalChildren > 0 && (
-            <span className="task-steps-count">
-              {completedChildren}/{totalChildren} 步骤
-            </span>
-          )}
-          {item.subContent && (
-            <span className="task-has-note">
-              <PaperClipOutlined />
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   // 渲染详情面板
   const renderDetailPanel = () => {
     if (!selectedTodo) return null;
-
-    const parentTodo = selectedParentId
-      ? [...todos, ...completed].find(t => t.id === selectedParentId)
-      : null;
 
     return (
       <div
@@ -690,6 +846,11 @@ export default function MarkdownEditor({
           <div className="detail-section">
             <div className="section-label">
               <UnorderedListOutlined /> 步骤
+              {selectedTodo.children.length > 0 && (
+                <span className="steps-progress">
+                  {selectedTodo.children.filter(c => c.checked).length}/{selectedTodo.children.length}
+                </span>
+              )}
             </div>
             <div className="steps-list">
               {selectedTodo.children.map(child => (
@@ -728,16 +889,25 @@ export default function MarkdownEditor({
         )}
 
         {/* 备注/附件 */}
-        <div className="detail-section">
+        <div className="detail-section notes-section">
           <div className="section-label">
             <PaperClipOutlined /> 备注 & 附件
-            <button
-              className="upload-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled}
-            >
-              上传文件
-            </button>
+            <div className="section-actions">
+              <button
+                className={`preview-toggle ${detailPreviewMode ? 'active' : ''}`}
+                onClick={() => setDetailPreviewMode(!detailPreviewMode)}
+                title={detailPreviewMode ? '编辑' : '预览'}
+              >
+                {detailPreviewMode ? <EditOutlined /> : <EyeOutlined />}
+              </button>
+              <button
+                className="upload-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled}
+              >
+                上传文件
+              </button>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -746,13 +916,26 @@ export default function MarkdownEditor({
               onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
             />
           </div>
-          <textarea
-            className="detail-notes"
-            value={selectedTodo.subContent}
-            onChange={(e) => updateTodoSubContent(selectedTodo.id, e.target.value, isSelectedCompleted, selectedParentId)}
-            placeholder="添加备注...&#10;支持 Markdown 格式，可拖拽文件到此处上传"
-            disabled={disabled}
-          />
+          <div className="notes-hint">支持 Markdown 格式，但不允许使用标题（#）语法</div>
+          {detailPreviewMode ? (
+            <div className="detail-notes-preview markdown-preview">
+              {selectedTodo.subContent ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {selectedTodo.subContent}
+                </ReactMarkdown>
+              ) : (
+                <div className="preview-empty">暂无备注内容</div>
+              )}
+            </div>
+          ) : (
+            <textarea
+              className="detail-notes"
+              value={selectedTodo.subContent}
+              onChange={(e) => updateTodoSubContent(selectedTodo.id, e.target.value, isSelectedCompleted, selectedParentId)}
+              placeholder="添加备注...（支持 Markdown，可拖拽文件上传）"
+              disabled={disabled}
+            />
+          )}
         </div>
 
         {/* 删除按钮 */}
@@ -780,7 +963,7 @@ export default function MarkdownEditor({
     <div className="todo-editor">
       {/* 左侧主面板 */}
       <div className="main-panel">
-        {/* 标签切换 */}
+        {/* 标签栏 */}
         <div className="tab-bar">
           <button
             className={`tab-btn ${activeTab === 'todos' ? 'active' : ''}`}
@@ -815,7 +998,27 @@ export default function MarkdownEditor({
                   <span>在下方添加新任务</span>
                 </div>
               ) : (
-                todos.map(item => renderTaskItem(item, false))
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={todos.map(t => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {todos.map(item => (
+                      <SortableTaskItem
+                        key={item.id}
+                        item={item}
+                        isCompleted={false}
+                        isSelected={selectedId === item.id}
+                        onSelect={() => setSelectedId(item.id)}
+                        onToggle={() => toggleTodo(item.id, false)}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               )}
             </>
           )}
@@ -828,25 +1031,68 @@ export default function MarkdownEditor({
                   <p>暂无已完成事项</p>
                 </div>
               ) : (
-                completed.map(item => renderTaskItem(item, true))
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={completed.map(t => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {completed.map(item => (
+                      <SortableTaskItem
+                        key={item.id}
+                        item={item}
+                        isCompleted={true}
+                        isSelected={selectedId === item.id}
+                        onSelect={() => setSelectedId(item.id)}
+                        onToggle={() => toggleTodo(item.id, true)}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               )}
             </>
           )}
 
           {activeTab === 'notes' && (
             <div className="notes-editor">
-              <textarea
-                value={notes}
-                onChange={(e) => updateNotes(e.target.value)}
-                placeholder="在这里记录笔记...&#10;支持 Markdown 格式"
-                disabled={disabled}
-                onKeyDown={(e) => {
-                  if (e.key === 's' && e.ctrlKey) {
-                    e.preventDefault();
-                    onSave?.();
-                  }
-                }}
-              />
+              <div className="notes-toolbar">
+                <span className="notes-hint-text">
+                  支持 Markdown 格式，标题请使用 ### 三级标题
+                </span>
+                <button
+                  className={`preview-toggle ${previewMode ? 'active' : ''}`}
+                  onClick={() => setPreviewMode(!previewMode)}
+                >
+                  {previewMode ? <><EditOutlined /> 编辑</> : <><EyeOutlined /> 预览</>}
+                </button>
+              </div>
+              {previewMode ? (
+                <div className="notes-preview markdown-preview">
+                  {notes ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {notes}
+                    </ReactMarkdown>
+                  ) : (
+                    <div className="preview-empty">暂无笔记内容</div>
+                  )}
+                </div>
+              ) : (
+                <textarea
+                  value={notes}
+                  onChange={(e) => updateNotes(e.target.value)}
+                  placeholder="在这里记录笔记...&#10;支持 Markdown 格式，标题请使用 ### 三级标题"
+                  disabled={disabled}
+                  onKeyDown={(e) => {
+                    if (e.key === 's' && e.ctrlKey) {
+                      e.preventDefault();
+                      onSave?.();
+                    }
+                  }}
+                />
+              )}
             </div>
           )}
         </div>

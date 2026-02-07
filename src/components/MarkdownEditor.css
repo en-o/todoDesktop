@@ -103,6 +103,28 @@
   opacity: 0.7;
 }
 
+/* 拖拽手柄 */
+.drag-handle {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c8c6c4;
+  cursor: grab;
+  margin-right: 8px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.drag-handle:hover {
+  color: #605e5c;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
 /* Checkbox */
 .task-checkbox,
 .detail-checkbox,
@@ -262,6 +284,46 @@
   flex: 1;
   padding: 16px;
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edebe9;
+}
+
+.notes-hint-text {
+  font-size: 12px;
+  color: #a19f9d;
+}
+
+.preview-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid #8a8886;
+  background: transparent;
+  color: #323130;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.preview-toggle:hover {
+  background: #f3f2f1;
+  border-color: #323130;
+}
+
+.preview-toggle.active {
+  background: #0078d4;
+  border-color: #0078d4;
+  color: #fff;
 }
 
 .notes-editor textarea {
@@ -283,6 +345,133 @@
 
 .notes-editor textarea::placeholder {
   color: #a19f9d;
+}
+
+/* 笔记预览 */
+.notes-preview {
+  flex: 1;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  padding: 16px;
+  overflow-y: auto;
+  background: #faf9f8;
+}
+
+/* Markdown 预览样式 */
+.markdown-preview {
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #323130;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+  color: #323130;
+}
+
+.markdown-preview h3 {
+  font-size: 16px;
+  border-bottom: 1px solid #edebe9;
+  padding-bottom: 4px;
+}
+
+.markdown-preview h4 {
+  font-size: 14px;
+}
+
+.markdown-preview p {
+  margin: 8px 0;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.markdown-preview li {
+  margin: 4px 0;
+}
+
+.markdown-preview code {
+  background: #f3f2f1;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 13px;
+}
+
+.markdown-preview pre {
+  background: #f3f2f1;
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+
+.markdown-preview pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.markdown-preview blockquote {
+  border-left: 3px solid #0078d4;
+  margin: 12px 0;
+  padding: 8px 16px;
+  background: #f3f2f1;
+  color: #605e5c;
+}
+
+.markdown-preview a {
+  color: #0078d4;
+  text-decoration: none;
+}
+
+.markdown-preview a:hover {
+  text-decoration: underline;
+}
+
+.markdown-preview img {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+.markdown-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid #edebe9;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background: #f3f2f1;
+  font-weight: 600;
+}
+
+.markdown-preview hr {
+  border: none;
+  border-top: 1px solid #edebe9;
+  margin: 16px 0;
+}
+
+.preview-empty {
+  color: #a19f9d;
+  text-align: center;
+  padding: 40px;
 }
 
 /* 右侧详情面板 */
@@ -354,6 +543,13 @@
   border-bottom: 1px solid #edebe9;
 }
 
+.detail-section.notes-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .section-label {
   display: flex;
   align-items: center;
@@ -361,15 +557,41 @@
   font-size: 13px;
   font-weight: 600;
   color: #605e5c;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .section-label .anticon {
   font-size: 14px;
 }
 
-.section-label .upload-btn {
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
+}
+
+.section-actions .preview-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: #f3f2f1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-actions .preview-toggle:hover {
+  background: #e1dfdd;
+}
+
+.section-actions .preview-toggle.active {
+  background: #0078d4;
+  color: #fff;
+}
+
+.section-label .upload-btn {
   padding: 4px 12px;
   border: 1px solid #8a8886;
   background: transparent;
@@ -383,6 +605,19 @@
 .section-label .upload-btn:hover:not(:disabled) {
   background: #f3f2f1;
   border-color: #323130;
+}
+
+.notes-hint {
+  font-size: 11px;
+  color: #a19f9d;
+  margin-bottom: 8px;
+}
+
+.steps-progress {
+  margin-left: auto;
+  font-weight: normal;
+  color: #a19f9d;
+  font-size: 12px;
 }
 
 /* 步骤列表 */
@@ -480,6 +715,7 @@
 
 /* 备注区 */
 .detail-notes {
+  flex: 1;
   width: 100%;
   min-height: 120px;
   border: 1px solid #edebe9;
@@ -488,7 +724,7 @@
   font-family: 'Monaco', 'Menlo', monospace;
   font-size: 13px;
   line-height: 1.5;
-  resize: vertical;
+  resize: none;
   outline: none;
   color: #323130;
 }
@@ -502,11 +738,21 @@
   font-family: 'Segoe UI', -apple-system, sans-serif;
 }
 
+.detail-notes-preview {
+  flex: 1;
+  min-height: 120px;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  padding: 12px;
+  overflow-y: auto;
+  background: #faf9f8;
+}
+
 /* 详情底部 */
 .detail-footer {
   padding: 16px;
-  margin-top: auto;
   border-top: 1px solid #edebe9;
+  flex-shrink: 0;
 }
 
 .delete-task-btn {
@@ -549,6 +795,7 @@
   color: #0078d4;
   font-size: 14px;
   pointer-events: none;
+  z-index: 10;
 }
 
 .drop-overlay .anticon {
