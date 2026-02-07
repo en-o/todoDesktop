@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "Todo Desktop",
-    "version": "0.0.6"
+    "version": "0.0.7"
   },
   "tauri": {
     "allowlist": {
@@ -51,7 +51,9 @@
       },
       "protocol": {
         "asset": true,
-        "assetScope": ["**/*"]
+        "assetScope": [
+          "**/*"
+        ]
       },
       "http": {
         "all": true,
