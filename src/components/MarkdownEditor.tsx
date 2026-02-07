@@ -1,8 +1,14 @@
-import { useEffect, useRef, useCallback } from 'react';
-import Vditor from 'vditor';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { message } from 'antd';
-import 'vditor/dist/index.css';
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  CloseOutlined,
+  PaperClipOutlined,
+  CheckOutlined,
+  UnorderedListOutlined,
+} from '@ant-design/icons';
 import './MarkdownEditor.css';
 
 interface MarkdownEditorProps {
@@ -16,126 +22,212 @@ interface MarkdownEditorProps {
   day?: string;
 }
 
-// 解析内容为待办和完成两个部分
-function parseContent(content: string): { header: string; todos: string[]; completed: string[] } {
+interface TodoItem {
+  id: string;
+  text: string;
+  checked: boolean;
+  subContent: string;
+  children: TodoItem[];
+  collapsed: boolean;
+}
+
+interface ParsedContent {
+  todos: TodoItem[];
+  completed: TodoItem[];
+  notes: string;
+}
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 9);
+}
+
+// 解析 Markdown 内容
+function parseContent(content: string): ParsedContent {
   const lines = content.split('\n');
-  let header = '';
-  const todos: string[] = [];
-  const completed: string[] = [];
-  let currentSection: 'header' | 'todos' | 'completed' = 'header';
+  const todos: TodoItem[] = [];
+  const completed: TodoItem[] = [];
+  let notes = '';
+
+  let currentSection: 'header' | 'todos' | 'completed' | 'notes' = 'header';
+  let currentParent: TodoItem | null = null;
+  let currentChild: TodoItem | null = null;
+  let inCodeBlock = false;
+  let collectingSubContent: 'parent' | 'child' | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.trim().startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+    }
+
+    if (!inCodeBlock) {
+      if (line.match(/^##\s*待办事项\s*$/)) {
+        saveCurrentItems();
+        currentSection = 'todos';
+        continue;
+      }
+      if (line.match(/^##\s*完成事项\s*$/)) {
+        saveCurrentItems();
+        currentSection = 'completed';
+        continue;
+      }
+      if (line.match(/^##\s*笔记\s*$/)) {
+        saveCurrentItems();
+        currentSection = 'notes';
+        continue;
+      }
+      if (line.match(/^#\s+\d{4}-\d{2}-\d{2}/)) {
+        continue;
+      }
+    }
+
+    if (currentSection === 'header') continue;
+
+    if (currentSection === 'notes') {
+      notes += line + '\n';
+      continue;
+    }
+
+    if (currentSection === 'todos' || currentSection === 'completed') {
+      const parentMatch = !inCodeBlock && line.match(/^-\s*\[([\sx])\]\s*(.*)$/i);
+      const childMatch = !inCodeBlock && line.match(/^(\s{2,4})-\s*\[([\sx])\]\s*(.*)$/i);
+
+      if (parentMatch) {
+        saveCurrentItems();
+        currentParent = {
+          id: generateId(),
+          checked: parentMatch[1].toLowerCase() === 'x',
+          text: parentMatch[2],
+          subContent: '',
+          children: [],
+          collapsed: false,
+        };
+        collectingSubContent = 'parent';
+        currentChild = null;
+      } else if (childMatch && currentParent) {
+        if (currentChild) {
+          currentChild.subContent = currentChild.subContent.trimEnd();
+          currentParent.children.push(currentChild);
+        }
+        currentChild = {
+          id: generateId(),
+          checked: childMatch[2].toLowerCase() === 'x',
+          text: childMatch[3],
+          subContent: '',
+          children: [],
+          collapsed: false,
+        };
+        collectingSubContent = 'child';
+      } else if (currentParent) {
+        if (collectingSubContent === 'child' && currentChild) {
+          const trimmedLine = line.replace(/^\s{2,4}/, '');
+          currentChild.subContent += trimmedLine + '\n';
+        } else if (collectingSubContent === 'parent') {
+          if (line.match(/^\s{2,4}/) && !childMatch) {
+            if (currentParent.children.length === 0 && !currentChild) {
+              currentParent.subContent += line.replace(/^\s{2,4}/, '') + '\n';
+            }
+          } else if (!line.match(/^\s/)) {
+            currentParent.subContent += line + '\n';
+          }
+        }
+      }
+    }
+  }
+
+  function saveCurrentItems() {
+    if (currentChild && currentParent) {
+      currentChild.subContent = currentChild.subContent.trimEnd();
+      currentParent.children.push(currentChild);
+      currentChild = null;
+    }
+    if (currentParent) {
+      currentParent.subContent = currentParent.subContent.trimEnd();
+      if (currentSection === 'todos') {
+        todos.push(currentParent);
+      } else if (currentSection === 'completed') {
+        completed.push(currentParent);
+      }
+      currentParent = null;
+    }
+    collectingSubContent = null;
+  }
+
+  saveCurrentItems();
+  return { todos, completed, notes: notes.trimEnd() };
+}
+
+function itemToMarkdown(item: TodoItem, indent: string = ''): string {
+  const checkbox = item.checked ? '- [x]' : '- [ ]';
+  let result = `${indent}${checkbox} ${item.text}`;
+
+  if (item.subContent.trim()) {
+    const subLines = item.subContent.split('\n');
+    for (const line of subLines) {
+      result += '\n' + indent + (indent ? '' : '  ') + line;
+    }
+  }
+
+  for (const child of item.children) {
+    result += '\n' + itemToMarkdown(child, indent + '  ');
+  }
+
+  return result;
+}
+
+function processNotesContent(notes: string): string {
+  const lines = notes.split('\n');
+  const result: string[] = [];
+  let inCodeBlock = false;
 
   for (const line of lines) {
-    // 检测待办事项标题
-    if (line.match(/^##\s*待办事项\s*$/)) {
-      currentSection = 'todos';
+    if (line.trim().startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      result.push(line);
       continue;
     }
-    // 检测完成事项标题
-    if (line.match(/^##\s*完成事项\s*$/)) {
-      currentSection = 'completed';
+    if (inCodeBlock) {
+      result.push(line);
       continue;
     }
-
-    if (currentSection === 'header') {
-      header += line + '\n';
-    } else if (currentSection === 'todos') {
-      todos.push(line);
+    if (line.match(/^##\s+/)) {
+      result.push('#' + line);
     } else {
-      completed.push(line);
+      result.push(line);
     }
   }
 
-  return { header: header.trimEnd(), todos, completed };
+  return result.join('\n');
 }
 
-// 重建内容，确保标题格式正确
-function buildContent(dateStr: string, todos: string[], completed: string[]): string {
-  let content = `# ${dateStr}\n\n## 待办事项\n\n`;
-  content += todos.join('\n');
-  content += '\n\n## 完成事项\n\n';
-  content += completed.join('\n');
+function buildMarkdown(dateStr: string, todos: TodoItem[], completed: TodoItem[], notes: string): string {
+  let content = `# ${dateStr}\n\n## 待办事项\n`;
+
+  if (todos.length > 0) {
+    content += todos.map(item => itemToMarkdown(item)).join('\n') + '\n';
+  } else {
+    content += '\n';
+  }
+
+  content += '\n## 完成事项\n';
+
+  if (completed.length > 0) {
+    content += completed.map(item => itemToMarkdown(item)).join('\n') + '\n';
+  } else {
+    content += '\n';
+  }
+
+  content += '\n## 笔记\n';
+
+  if (notes.trim()) {
+    const processedNotes = processNotesContent(notes.trim());
+    content += processedNotes + '\n';
+  } else {
+    content += '\n';
+  }
+
   return content;
-}
-
-// 处理复选框状态变化：勾选移到完成，取消勾选移回待办
-function processCheckboxChange(content: string, dateStr: string): string {
-  const { todos, completed } = parseContent(content);
-
-  const newTodos: string[] = [];
-  const newCompleted: string[] = [];
-
-  // 处理待办列表：已勾选的移到完成
-  for (const line of todos) {
-    if (line.match(/^-\s*\[x\]/i)) {
-      // 已勾选，移到完成列表
-      newCompleted.push(line);
-    } else {
-      newTodos.push(line);
-    }
-  }
-
-  // 处理完成列表：取消勾选的移回待办
-  for (const line of completed) {
-    if (line.match(/^-\s*\[\s\]/)) {
-      // 已取消勾选，移回待办列表
-      newTodos.push(line);
-    } else {
-      newCompleted.push(line);
-    }
-  }
-
-  return buildContent(dateStr, newTodos, newCompleted);
-}
-
-// 验证并修复标题结构
-function validateAndFixHeaders(content: string, dateStr: string): string {
-  // 检查是否包含正确的标题
-  const hasCorrectDateHeader = content.match(new RegExp(`^#\\s+${dateStr.replace(/-/g, '-')}\\s*$`, 'm'));
-  const hasTodosHeader = content.includes('## 待办事项');
-  const hasCompletedHeader = content.includes('## 完成事项');
-
-  // 如果所有标题都正确，返回原内容
-  if (hasCorrectDateHeader && hasTodosHeader && hasCompletedHeader) {
-    return content;
-  }
-
-  // 否则，解析内容并用正确的标题重建
-  const { todos, completed } = parseContent(content);
-  return buildContent(dateStr, todos, completed);
-}
-
-// 确保内容包含必要的结构
-function ensureStructure(content: string, dateStr: string): string {
-  if (!dateStr) return content;
-
-  // 检查是否包含待办事项和完成事项标题
-  const hasTodos = content.includes('## 待办事项');
-  const hasCompleted = content.includes('## 完成事项');
-
-  if (!hasTodos || !hasCompleted) {
-    // 创建默认结构
-    return `# ${dateStr}
-
-## 待办事项
-
-- [ ]
-
-## 完成事项
-
-`;
-  }
-
-  // 验证并修复标题
-  return validateAndFixHeaders(content, dateStr);
-}
-
-// 将手动输入的 [ ] 或 [] 转换为复选框格式
-function convertCheckboxSyntax(content: string): string {
-  // 将 "- []" 转换为 "- [ ]"
-  let newContent = content.replace(/^(-\s*)\[\](\s*)$/gm, '$1[ ]$2');
-  // 将 "- [ ]" 后没有空格的情况补上空格
-  newContent = newContent.replace(/^(-\s*\[\s\])([^\s])/gm, '$1 $2');
-  return newContent;
 }
 
 export default function MarkdownEditor({
@@ -143,81 +235,331 @@ export default function MarkdownEditor({
   onChange,
   onSave,
   disabled = false,
-  placeholder = '开始编写...',
   year,
   month,
   day,
 }: MarkdownEditorProps) {
-  const vditorRef = useRef<Vditor | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const initialValueRef = useRef(value);
-  const lastValueRef = useRef(value);
-  const isProcessingRef = useRef(false);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [completed, setCompleted] = useState<TodoItem[]>([]);
+  const [notes, setNotes] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [newTodoText, setNewTodoText] = useState('');
+  const [activeTab, setActiveTab] = useState<'todos' | 'completed' | 'notes'>('todos');
+  const [isDragging, setIsDragging] = useState(false);
 
   const dateStr = year && day ? `${year}-${day}` : '';
+  const isEditingRef = useRef(false);
+  const lastDateRef = useRef('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSave = useCallback(() => {
-    if (onSave) {
-      onSave();
-    }
-  }, [onSave]);
+  // 获取选中的任务
+  const selectedTodo = todos.find(t => t.id === selectedId) ||
+                       completed.find(t => t.id === selectedId) ||
+                       todos.flatMap(t => t.children).find(t => t.id === selectedId) ||
+                       completed.flatMap(t => t.children).find(t => t.id === selectedId);
 
-  // 处理内容变化
-  const handleContentChange = useCallback((newValue: string) => {
-    if (isProcessingRef.current || !dateStr) return;
+  const isSelectedCompleted = completed.some(t => t.id === selectedId) ||
+                              completed.some(t => t.children.some(c => c.id === selectedId));
 
-    // 转换复选框语法
-    let processed = convertCheckboxSyntax(newValue);
-
-    // 确保结构完整并验证标题
-    processed = ensureStructure(processed, dateStr);
-
-    // 检测复选框状态变化并处理
-    const oldTodoCount = (lastValueRef.current.match(/-\s*\[\s\]/g) || []).length;
-    const oldCompletedCount = (lastValueRef.current.match(/-\s*\[x\]/gi) || []).length;
-    const newTodoCount = (processed.match(/-\s*\[\s\]/g) || []).length;
-    const newCompletedCount = (processed.match(/-\s*\[x\]/gi) || []).length;
-
-    // 如果复选框状态变化了，处理移动逻辑
-    if (oldTodoCount !== newTodoCount || oldCompletedCount !== newCompletedCount) {
-      processed = processCheckboxChange(processed, dateStr);
-    }
-
-    lastValueRef.current = processed;
-
-    // 如果处理后的内容与原内容不同，更新编辑器
-    if (processed !== newValue && vditorRef.current) {
-      isProcessingRef.current = true;
-      const cursorPos = vditorRef.current.getSelection();
-      vditorRef.current.setValue(processed);
-      // 尝试恢复光标位置
-      try {
-        if (cursorPos) {
-          vditorRef.current.focus();
-        }
-      } catch (e) {
-        // 忽略光标恢复错误
+  // 找到选中项的父级 ID
+  const findParentId = (id: string): string | undefined => {
+    for (const todo of [...todos, ...completed]) {
+      if (todo.children.some(c => c.id === id)) {
+        return todo.id;
       }
-      isProcessingRef.current = false;
+    }
+    return undefined;
+  };
+
+  const selectedParentId = selectedId ? findParentId(selectedId) : undefined;
+
+  useEffect(() => {
+    if (!dateStr) return;
+    if (isEditingRef.current && lastDateRef.current === dateStr) return;
+
+    lastDateRef.current = dateStr;
+
+    if (value) {
+      const parsed = parseContent(value);
+      setTodos(parsed.todos);
+      setCompleted(parsed.completed);
+      setNotes(parsed.notes);
+    } else {
+      setTodos([]);
+      setCompleted([]);
+      setNotes('');
+    }
+    setSelectedId(null);
+  }, [dateStr, value]);
+
+  const syncToParent = useCallback((newTodos: TodoItem[], newCompleted: TodoItem[], newNotes: string) => {
+    if (!dateStr) return;
+    isEditingRef.current = true;
+    const markdown = buildMarkdown(dateStr, newTodos, newCompleted, newNotes);
+    onChange(markdown);
+    setTimeout(() => {
+      isEditingRef.current = false;
+    }, 100);
+  }, [dateStr, onChange]);
+
+  // 切换 checkbox 状态
+  const toggleTodo = useCallback((id: string, isCompleted: boolean, parentId?: string) => {
+    if (isCompleted) {
+      if (parentId) {
+        const newCompleted = completed.map(parent => {
+          if (parent.id === parentId) {
+            return {
+              ...parent,
+              children: parent.children.map(child =>
+                child.id === id ? { ...child, checked: !child.checked } : child
+              ),
+            };
+          }
+          return parent;
+        });
+        setCompleted(newCompleted);
+        syncToParent(todos, newCompleted, notes);
+      } else {
+        const item = completed.find(t => t.id === id);
+        if (item) {
+          const newItem = { ...item, checked: false };
+          const newCompleted = completed.filter(t => t.id !== id);
+          const newTodos = [...todos, newItem];
+          setCompleted(newCompleted);
+          setTodos(newTodos);
+          syncToParent(newTodos, newCompleted, notes);
+        }
+      }
+    } else {
+      if (parentId) {
+        const newTodos = todos.map(parent => {
+          if (parent.id === parentId) {
+            return {
+              ...parent,
+              children: parent.children.map(child =>
+                child.id === id ? { ...child, checked: !child.checked } : child
+              ),
+            };
+          }
+          return parent;
+        });
+        setTodos(newTodos);
+        syncToParent(newTodos, completed, notes);
+      } else {
+        const item = todos.find(t => t.id === id);
+        if (item) {
+          const newItem = { ...item, checked: true };
+          const newTodos = todos.filter(t => t.id !== id);
+          const newCompleted = [...completed, newItem];
+          setTodos(newTodos);
+          setCompleted(newCompleted);
+          if (selectedId === id) setSelectedId(null);
+          syncToParent(newTodos, newCompleted, notes);
+        }
+      }
+    }
+  }, [todos, completed, notes, selectedId, syncToParent]);
+
+  // 添加新 todo
+  const addTodo = useCallback(() => {
+    if (!newTodoText.trim()) return;
+
+    const newItem: TodoItem = {
+      id: generateId(),
+      text: newTodoText.trim(),
+      checked: false,
+      subContent: '',
+      children: [],
+      collapsed: false,
+    };
+
+    const newTodos = [...todos, newItem];
+    setTodos(newTodos);
+    setNewTodoText('');
+    syncToParent(newTodos, completed, notes);
+  }, [newTodoText, todos, completed, notes, syncToParent]);
+
+  // 添加子步骤
+  const addStep = useCallback((parentId: string) => {
+    const newChild: TodoItem = {
+      id: generateId(),
+      text: '',
+      checked: false,
+      subContent: '',
+      children: [],
+      collapsed: false,
+    };
+
+    const isInCompleted = completed.some(t => t.id === parentId);
+
+    if (isInCompleted) {
+      const newCompleted = completed.map(parent => {
+        if (parent.id === parentId) {
+          return { ...parent, children: [...parent.children, newChild] };
+        }
+        return parent;
+      });
+      setCompleted(newCompleted);
+      syncToParent(todos, newCompleted, notes);
+    } else {
+      const newTodos = todos.map(parent => {
+        if (parent.id === parentId) {
+          return { ...parent, children: [...parent.children, newChild] };
+        }
+        return parent;
+      });
+      setTodos(newTodos);
+      syncToParent(newTodos, completed, notes);
+    }
+  }, [todos, completed, notes, syncToParent]);
+
+  // 更新任务文本
+  const updateTodoText = useCallback((id: string, text: string, isCompleted: boolean, parentId?: string) => {
+    if (isCompleted) {
+      if (parentId) {
+        const newCompleted = completed.map(parent => {
+          if (parent.id === parentId) {
+            return {
+              ...parent,
+              children: parent.children.map(child =>
+                child.id === id ? { ...child, text } : child
+              ),
+            };
+          }
+          return parent;
+        });
+        setCompleted(newCompleted);
+        syncToParent(todos, newCompleted, notes);
+      } else {
+        const newCompleted = completed.map(t => t.id === id ? { ...t, text } : t);
+        setCompleted(newCompleted);
+        syncToParent(todos, newCompleted, notes);
+      }
+    } else {
+      if (parentId) {
+        const newTodos = todos.map(parent => {
+          if (parent.id === parentId) {
+            return {
+              ...parent,
+              children: parent.children.map(child =>
+                child.id === id ? { ...child, text } : child
+              ),
+            };
+          }
+          return parent;
+        });
+        setTodos(newTodos);
+        syncToParent(newTodos, completed, notes);
+      } else {
+        const newTodos = todos.map(t => t.id === id ? { ...t, text } : t);
+        setTodos(newTodos);
+        syncToParent(newTodos, completed, notes);
+      }
+    }
+  }, [todos, completed, notes, syncToParent]);
+
+  // 更新备注
+  const updateTodoSubContent = useCallback((id: string, subContent: string, isCompleted: boolean, parentId?: string) => {
+    if (isCompleted) {
+      if (parentId) {
+        const newCompleted = completed.map(parent => {
+          if (parent.id === parentId) {
+            return {
+              ...parent,
+              children: parent.children.map(child =>
+                child.id === id ? { ...child, subContent } : child
+              ),
+            };
+          }
+          return parent;
+        });
+        setCompleted(newCompleted);
+        syncToParent(todos, newCompleted, notes);
+      } else {
+        const newCompleted = completed.map(t => t.id === id ? { ...t, subContent } : t);
+        setCompleted(newCompleted);
+        syncToParent(todos, newCompleted, notes);
+      }
+    } else {
+      if (parentId) {
+        const newTodos = todos.map(parent => {
+          if (parent.id === parentId) {
+            return {
+              ...parent,
+              children: parent.children.map(child =>
+                child.id === id ? { ...child, subContent } : child
+              ),
+            };
+          }
+          return parent;
+        });
+        setTodos(newTodos);
+        syncToParent(newTodos, completed, notes);
+      } else {
+        const newTodos = todos.map(t => t.id === id ? { ...t, subContent } : t);
+        setTodos(newTodos);
+        syncToParent(newTodos, completed, notes);
+      }
+    }
+  }, [todos, completed, notes, syncToParent]);
+
+  // 删除任务
+  const deleteTodo = useCallback((id: string, isCompleted: boolean, parentId?: string) => {
+    if (isCompleted) {
+      if (parentId) {
+        const newCompleted = completed.map(parent => {
+          if (parent.id === parentId) {
+            return { ...parent, children: parent.children.filter(child => child.id !== id) };
+          }
+          return parent;
+        });
+        setCompleted(newCompleted);
+        syncToParent(todos, newCompleted, notes);
+      } else {
+        const newCompleted = completed.filter(t => t.id !== id);
+        setCompleted(newCompleted);
+        syncToParent(todos, newCompleted, notes);
+      }
+    } else {
+      if (parentId) {
+        const newTodos = todos.map(parent => {
+          if (parent.id === parentId) {
+            return { ...parent, children: parent.children.filter(child => child.id !== id) };
+          }
+          return parent;
+        });
+        setTodos(newTodos);
+        syncToParent(newTodos, completed, notes);
+      } else {
+        const newTodos = todos.filter(t => t.id !== id);
+        setTodos(newTodos);
+        syncToParent(newTodos, completed, notes);
+      }
+    }
+    if (selectedId === id) setSelectedId(null);
+  }, [todos, completed, notes, selectedId, syncToParent]);
+
+  // 更新笔记
+  const updateNotes = useCallback((newNotes: string) => {
+    setNotes(newNotes);
+    syncToParent(todos, completed, newNotes);
+  }, [todos, completed, syncToParent]);
+
+  // 文件上传处理
+  const handleFileUpload = useCallback(async (files: FileList | File[]) => {
+    if (!year || !month || !day || !selectedTodo) {
+      message.error('请先选择一个任务');
+      return;
     }
 
-    onChange(processed);
-  }, [onChange, dateStr]);
-
-  // 处理文件上传
-  const handleUpload = useCallback(async (files: File[]): Promise<string | null> => {
-    if (!year || !month || !day) {
-      message.error('无法上传：日期信息缺失');
-      return null;
-    }
-
+    const fileArray = Array.from(files);
     const results: string[] = [];
 
-    for (const file of files) {
+    for (const file of fileArray) {
       try {
         const arrayBuffer = await file.arrayBuffer();
         const data = Array.from(new Uint8Array(arrayBuffer));
-        const filename = `${day}-${file.name}`;
+        const filename = `${day}-${Date.now()}-${file.name}`;
 
         const relativePath = await invoke<string>('upload_attachment', {
           year,
@@ -236,124 +578,306 @@ export default function MarkdownEditor({
       }
     }
 
-    return results.join('\n');
-  }, [year, month, day]);
+    if (results.length > 0) {
+      const insertText = results.join('\n');
+      const currentContent = selectedTodo.subContent || '';
+      const newContent = currentContent + (currentContent ? '\n' : '') + insertText;
+      updateTodoSubContent(selectedTodo.id, newContent, isSelectedCompleted, selectedParentId);
+      message.success(`已上传 ${results.length} 个文件`);
+    }
+  }, [year, month, day, selectedTodo, isSelectedCompleted, selectedParentId, updateTodoSubContent]);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const vd = new Vditor(containerRef.current, {
-      mode: 'ir',
-      value: ensureStructure(initialValueRef.current, dateStr),
-      placeholder,
-      cache: { enable: false },
-      toolbar: [
-        'headings',
-        'bold',
-        'italic',
-        'strike',
-        '|',
-        'check',
-        'list',
-        'ordered-list',
-        '|',
-        'quote',
-        'code',
-        'inline-code',
-        '|',
-        'table',
-        'link',
-        'upload',
-        '|',
-        'undo',
-        'redo',
-      ],
-      toolbarConfig: {
-        pin: true,
-      },
-      counter: {
-        enable: true,
-        type: 'text',
-      },
-      preview: {
-        markdown: {
-          toc: true,
-          mark: true,
-        },
-      },
-      upload: {
-        accept: 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z',
-        multiple: true,
-        handler: async (files: File[]) => {
-          const result = await handleUpload(files);
-          if (result && vditorRef.current) {
-            vditorRef.current.insertValue(result);
-          }
-          return null;
-        },
-      },
-      hint: {
-        emoji: {
-          '+1': '👍',
-          '-1': '👎',
-          'heart': '❤️',
-          'star': '⭐',
-          'fire': '🔥',
-          'check': '✅',
-          'x': '❌',
-          'warning': '⚠️',
-          'info': 'ℹ️',
-        },
-      },
-      after: () => {
-        vditorRef.current = vd;
-        lastValueRef.current = vd.getValue();
-        if (disabled) {
-          vd.disabled();
-        }
-      },
-      input: (val) => {
-        handleContentChange(val);
-      },
-      ctrlEnter: () => {
-        handleSave();
-      },
-    });
-
-    return () => {
-      vditorRef.current?.destroy();
-      vditorRef.current = null;
-    };
+  // 拖拽事件处理
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
   }, []);
 
-  // 更新禁用状态
-  useEffect(() => {
-    if (vditorRef.current) {
-      if (disabled) {
-        vditorRef.current.disabled();
-      } else {
-        vditorRef.current.enable();
-      }
-    }
-  }, [disabled]);
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
 
-  // 外部值变化时更新编辑器
-  useEffect(() => {
-    if (vditorRef.current && !isProcessingRef.current) {
-      const currentValue = vditorRef.current.getValue();
-      const structuredValue = ensureStructure(value, dateStr);
-      if (structuredValue !== currentValue) {
-        isProcessingRef.current = true;
-        vditorRef.current.setValue(structuredValue);
-        lastValueRef.current = structuredValue;
-        isProcessingRef.current = false;
-      }
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files);
     }
-  }, [value, dateStr]);
+  }, [handleFileUpload]);
+
+  // 渲染任务列表项
+  const renderTaskItem = (item: TodoItem, isCompleted: boolean, parentId?: string) => {
+    const isSelected = selectedId === item.id;
+    const completedChildren = item.children.filter(c => c.checked).length;
+    const totalChildren = item.children.length;
+
+    return (
+      <div
+        key={item.id}
+        className={`task-item ${isSelected ? 'selected' : ''} ${isCompleted ? 'completed' : ''}`}
+        onClick={() => setSelectedId(item.id)}
+      >
+        <div
+          className="task-checkbox"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleTodo(item.id, isCompleted, parentId);
+          }}
+        >
+          {item.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
+        </div>
+        <div className="task-content">
+          <span className={`task-text ${item.checked ? 'checked' : ''}`}>
+            {item.text || '无标题'}
+          </span>
+          {totalChildren > 0 && (
+            <span className="task-steps-count">
+              {completedChildren}/{totalChildren} 步骤
+            </span>
+          )}
+          {item.subContent && (
+            <span className="task-has-note">
+              <PaperClipOutlined />
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // 渲染详情面板
+  const renderDetailPanel = () => {
+    if (!selectedTodo) return null;
+
+    const parentTodo = selectedParentId
+      ? [...todos, ...completed].find(t => t.id === selectedParentId)
+      : null;
+
+    return (
+      <div
+        className={`detail-panel ${isDragging ? 'dragging' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <div className="detail-header">
+          <div
+            className="detail-checkbox"
+            onClick={() => toggleTodo(selectedTodo.id, isSelectedCompleted, selectedParentId)}
+          >
+            {selectedTodo.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
+          </div>
+          <input
+            type="text"
+            className={`detail-title ${selectedTodo.checked ? 'checked' : ''}`}
+            value={selectedTodo.text}
+            onChange={(e) => updateTodoText(selectedTodo.id, e.target.value, isSelectedCompleted, selectedParentId)}
+            placeholder="任务标题"
+            disabled={disabled}
+          />
+          <button className="close-btn" onClick={() => setSelectedId(null)}>
+            <CloseOutlined />
+          </button>
+        </div>
+
+        {/* 子步骤 - 只有父级任务才显示 */}
+        {!selectedParentId && (
+          <div className="detail-section">
+            <div className="section-label">
+              <UnorderedListOutlined /> 步骤
+            </div>
+            <div className="steps-list">
+              {selectedTodo.children.map(child => (
+                <div key={child.id} className="step-item">
+                  <div
+                    className="step-checkbox"
+                    onClick={() => toggleTodo(child.id, isSelectedCompleted, selectedTodo.id)}
+                  >
+                    {child.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
+                  </div>
+                  <input
+                    type="text"
+                    className={`step-text ${child.checked ? 'checked' : ''}`}
+                    value={child.text}
+                    onChange={(e) => updateTodoText(child.id, e.target.value, isSelectedCompleted, selectedTodo.id)}
+                    placeholder="步骤内容"
+                    disabled={disabled}
+                  />
+                  <button
+                    className="step-delete"
+                    onClick={() => deleteTodo(child.id, isSelectedCompleted, selectedTodo.id)}
+                  >
+                    <DeleteOutlined />
+                  </button>
+                </div>
+              ))}
+              <button
+                className="add-step-btn"
+                onClick={() => addStep(selectedTodo.id)}
+                disabled={disabled}
+              >
+                <PlusOutlined /> 添加步骤
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 备注/附件 */}
+        <div className="detail-section">
+          <div className="section-label">
+            <PaperClipOutlined /> 备注 & 附件
+            <button
+              className="upload-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled}
+            >
+              上传文件
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+            />
+          </div>
+          <textarea
+            className="detail-notes"
+            value={selectedTodo.subContent}
+            onChange={(e) => updateTodoSubContent(selectedTodo.id, e.target.value, isSelectedCompleted, selectedParentId)}
+            placeholder="添加备注...&#10;支持 Markdown 格式，可拖拽文件到此处上传"
+            disabled={disabled}
+          />
+        </div>
+
+        {/* 删除按钮 */}
+        <div className="detail-footer">
+          <button
+            className="delete-task-btn"
+            onClick={() => deleteTodo(selectedTodo.id, isSelectedCompleted, selectedParentId)}
+            disabled={disabled}
+          >
+            <DeleteOutlined /> 删除任务
+          </button>
+        </div>
+
+        {isDragging && (
+          <div className="drop-overlay">
+            <PaperClipOutlined />
+            <span>放开以上传文件</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="markdown-editor-container">
-      <div ref={containerRef} className="vditor-wrapper" />
+    <div className="todo-editor">
+      {/* 左侧主面板 */}
+      <div className="main-panel">
+        {/* 标签切换 */}
+        <div className="tab-bar">
+          <button
+            className={`tab-btn ${activeTab === 'todos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('todos')}
+          >
+            待办事项
+            {todos.length > 0 && <span className="tab-count">{todos.length}</span>}
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'completed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('completed')}
+          >
+            已完成
+            {completed.length > 0 && <span className="tab-count completed">{completed.length}</span>}
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('notes'); setSelectedId(null); }}
+          >
+            笔记
+          </button>
+        </div>
+
+        {/* 任务列表 */}
+        <div className="task-list">
+          {activeTab === 'todos' && (
+            <>
+              {todos.length === 0 ? (
+                <div className="empty-list">
+                  <CheckOutlined />
+                  <p>暂无待办事项</p>
+                  <span>在下方添加新任务</span>
+                </div>
+              ) : (
+                todos.map(item => renderTaskItem(item, false))
+              )}
+            </>
+          )}
+
+          {activeTab === 'completed' && (
+            <>
+              {completed.length === 0 ? (
+                <div className="empty-list">
+                  <CheckOutlined />
+                  <p>暂无已完成事项</p>
+                </div>
+              ) : (
+                completed.map(item => renderTaskItem(item, true))
+              )}
+            </>
+          )}
+
+          {activeTab === 'notes' && (
+            <div className="notes-editor">
+              <textarea
+                value={notes}
+                onChange={(e) => updateNotes(e.target.value)}
+                placeholder="在这里记录笔记...&#10;支持 Markdown 格式"
+                disabled={disabled}
+                onKeyDown={(e) => {
+                  if (e.key === 's' && e.ctrlKey) {
+                    e.preventDefault();
+                    onSave?.();
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* 底部添加任务 */}
+        {activeTab === 'todos' && (
+          <div className="add-task-bar">
+            <PlusOutlined />
+            <input
+              type="text"
+              value={newTodoText}
+              onChange={(e) => setNewTodoText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTodoText.trim()) {
+                  addTodo();
+                }
+              }}
+              placeholder="添加任务"
+              disabled={disabled}
+            />
+            {newTodoText.trim() && (
+              <button className="add-btn" onClick={addTodo} disabled={disabled}>
+                添加
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 右侧详情面板 */}
+      {selectedId && activeTab !== 'notes' && renderDetailPanel()}
     </div>
   );
 }

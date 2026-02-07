@@ -1,167 +1,570 @@
-.markdown-editor-container {
+/* Microsoft Todo 风格布局 */
+.todo-editor {
+  display: flex;
   height: 100%;
+  background: #faf9f8;
+  overflow: hidden;
+}
+
+/* 左侧主面板 */
+.main-panel {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 300px;
+  background: #fff;
+  border-right: 1px solid #edebe9;
 }
 
-.vditor-wrapper {
+/* 标签栏 */
+.tab-bar {
+  display: flex;
+  padding: 0 16px;
+  border-bottom: 1px solid #edebe9;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: #605e5c;
+  font-size: 14px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s;
+}
+
+.tab-btn:hover {
+  color: #323130;
+}
+
+.tab-btn.active {
+  color: #0078d4;
+  font-weight: 600;
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  background: #0078d4;
+  border-radius: 1px 1px 0 0;
+}
+
+.tab-count {
+  background: #e1dfdd;
+  color: #605e5c;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tab-count.completed {
+  background: #dff6dd;
+  color: #107c10;
+}
+
+/* 任务列表 */
+.task-list {
   flex: 1;
-  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 0;
 }
 
-/* 覆盖 Vditor 默认样式以适配应用主题 */
-.vditor {
-  border: none !important;
-  border-radius: 0 !important;
+/* 任务项 */
+.task-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
 }
 
-.vditor-toolbar {
-  background: #fafafa !important;
-  border-bottom: 1px solid #f0f0f0 !important;
-  padding: 8px 16px !important;
-  flex-wrap: wrap !important;
-  height: auto !important;
-  min-height: 40px !important;
-  position: relative !important;
-  z-index: 10 !important;
-  overflow: visible !important;
+.task-item:hover {
+  background: #f3f2f1;
 }
 
-.vditor-toolbar__item {
-  margin: 0 2px !important;
-  overflow: visible !important;
+.task-item.selected {
+  background: #e8f4fc;
+  border-left-color: #0078d4;
 }
 
-.vditor-toolbar__item button {
-  border-radius: 4px !important;
-  white-space: nowrap !important;
-  overflow: visible !important;
+.task-item.completed {
+  opacity: 0.7;
 }
 
-.vditor-toolbar__item button svg {
-  width: 16px !important;
-  height: 16px !important;
+/* Checkbox */
+.task-checkbox,
+.detail-checkbox,
+.step-checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #8a8886;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  margin-right: 12px;
 }
 
-/* 工具栏提示框 - 强制显示在下方 */
-.vditor-toolbar .vditor-tooltipped::before,
-.vditor-toolbar .vditor-tooltipped::after {
-  z-index: 1000 !important;
+.task-checkbox:hover,
+.detail-checkbox:hover,
+.step-checkbox:hover {
+  border-color: #0078d4;
 }
 
-/* 将提示框改为显示在下方 */
-.vditor-toolbar .vditor-tooltipped {
-  position: relative !important;
+.task-checkbox .anticon,
+.detail-checkbox .anticon,
+.step-checkbox .anticon {
+  color: #107c10;
+  font-size: 12px;
 }
 
-.vditor-toolbar .vditor-tooltipped::after {
-  top: 100% !important;
-  bottom: auto !important;
-  margin-top: 6px !important;
-  margin-bottom: 0 !important;
+.checkbox-empty {
+  width: 100%;
+  height: 100%;
 }
 
-.vditor-toolbar .vditor-tooltipped::before {
-  top: calc(100% + 2px) !important;
-  bottom: auto !important;
-  border-top-color: transparent !important;
-  border-bottom-color: #1a1a1a !important;
-  border-width: 0 6px 6px 6px !important;
+.task-item.completed .task-checkbox,
+.task-item.completed .task-checkbox:hover {
+  border-color: #107c10;
+  background: #107c10;
 }
 
-.vditor-toolbar__item button:hover {
-  background: #e6f7ff !important;
+.task-item.completed .task-checkbox .anticon {
+  color: #fff;
 }
 
-.vditor-ir {
-  padding: 24px !important;
-  font-size: 15px !important;
-  line-height: 1.8 !important;
+/* 任务内容 */
+.task-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.vditor-ir pre.vditor-reset {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+.task-text {
+  font-size: 14px;
+  color: #323130;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* 代码块样式 */
-.vditor-ir pre.vditor-reset code {
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace !important;
-}
-
-/* 任务列表样式 */
-.vditor-ir .vditor-task input {
-  margin-right: 8px;
-  transform: scale(1.2);
-}
-
-/* 链接样式 */
-.vditor-ir a {
-  color: #1890ff !important;
-}
-
-/* 引用块样式 */
-.vditor-ir blockquote {
-  border-left: 4px solid #1890ff !important;
-  background: #f9f9f9 !important;
-  padding: 12px 16px !important;
-  margin: 16px 0 !important;
-}
-
-/* 表格样式 */
-.vditor-ir table {
-  border-collapse: collapse !important;
-  width: 100% !important;
-  margin: 16px 0 !important;
-}
-
-.vditor-ir table th,
-.vditor-ir table td {
-  border: 1px solid #ddd !important;
-  padding: 8px 12px !important;
-}
-
-.vditor-ir table th {
-  background: #fafafa !important;
-}
-
-/* 计数器样式 */
-.vditor-counter {
-  color: #999 !important;
-  font-size: 12px !important;
-  padding: 4px 16px !important;
-  border-top: 1px solid #f0f0f0 !important;
-}
-
-/* 即时渲染模式标题样式 */
-.vditor-ir h1 {
-  font-size: 28px !important;
-  border-bottom: 1px solid #eee !important;
-  padding-bottom: 8px !important;
-  margin-bottom: 16px !important;
-}
-
-.vditor-ir h2 {
-  font-size: 22px !important;
-  color: #1890ff !important;
-  margin-top: 24px !important;
-}
-
-.vditor-ir h3 {
-  font-size: 18px !important;
-  margin-top: 20px !important;
-}
-
-/* 占位符样式 */
-.vditor-ir__placeholder {
-  color: #bbb !important;
-}
-
-/* 完成事项区域样式 - 已完成的任务显示删除线和灰色 */
-.vditor-ir .vditor-task--done {
+.task-text.checked {
+  color: #a19f9d;
   text-decoration: line-through;
-  color: #999 !important;
 }
 
-.vditor-ir .vditor-task--done input {
-  opacity: 0.6;
+.task-steps-count {
+  font-size: 12px;
+  color: #605e5c;
+}
+
+.task-has-note {
+  font-size: 12px;
+  color: #a19f9d;
+  display: inline-flex;
+  margin-left: 8px;
+}
+
+/* 空状态 */
+.empty-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #a19f9d;
+}
+
+.empty-list .anticon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #c8c6c4;
+}
+
+.empty-list p {
+  margin: 0;
+  font-size: 16px;
+  color: #605e5c;
+}
+
+.empty-list span {
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+/* 添加任务栏 */
+.add-task-bar {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid #edebe9;
+  background: #fff;
+  gap: 12px;
+}
+
+.add-task-bar .anticon {
+  color: #0078d4;
+  font-size: 16px;
+}
+
+.add-task-bar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: #323130;
+  background: transparent;
+}
+
+.add-task-bar input::placeholder {
+  color: #a19f9d;
+}
+
+.add-btn {
+  padding: 6px 16px;
+  border: none;
+  background: #0078d4;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.add-btn:hover:not(:disabled) {
+  background: #106ebe;
+}
+
+.add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 笔记编辑器 */
+.notes-editor {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+}
+
+.notes-editor textarea {
+  flex: 1;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  padding: 12px;
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  color: #323130;
+}
+
+.notes-editor textarea:focus {
+  border-color: #0078d4;
+}
+
+.notes-editor textarea::placeholder {
+  color: #a19f9d;
+}
+
+/* 右侧详情面板 */
+.detail-panel {
+  width: 360px;
+  background: #fff;
+  border-left: 1px solid #edebe9;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.detail-panel.dragging {
+  background: #e8f4fc;
+}
+
+/* 详情头部 */
+.detail-header {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #edebe9;
+  gap: 12px;
+}
+
+.detail-title {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  font-weight: 600;
+  color: #323130;
+  background: transparent;
+}
+
+.detail-title.checked {
+  color: #a19f9d;
+  text-decoration: line-through;
+}
+
+.detail-title::placeholder {
+  color: #a19f9d;
+  font-weight: normal;
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: #605e5c;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.close-btn:hover {
+  background: #f3f2f1;
+  color: #323130;
+}
+
+/* 详情区块 */
+.detail-section {
+  padding: 16px;
+  border-bottom: 1px solid #edebe9;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #605e5c;
+  margin-bottom: 12px;
+}
+
+.section-label .anticon {
+  font-size: 14px;
+}
+
+.section-label .upload-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid #8a8886;
+  background: transparent;
+  color: #323130;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.section-label .upload-btn:hover:not(:disabled) {
+  background: #f3f2f1;
+  border-color: #323130;
+}
+
+/* 步骤列表 */
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  background: #faf9f8;
+  border-radius: 4px;
+  gap: 8px;
+}
+
+.step-checkbox {
+  width: 16px;
+  height: 16px;
+  border-width: 1.5px;
+  margin-right: 0;
+}
+
+.step-checkbox .anticon {
+  font-size: 10px;
+}
+
+.step-text {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: #323130;
+  background: transparent;
+}
+
+.step-text.checked {
+  color: #a19f9d;
+  text-decoration: line-through;
+}
+
+.step-text::placeholder {
+  color: #a19f9d;
+}
+
+.step-delete {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: #a19f9d;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.step-item:hover .step-delete {
+  opacity: 1;
+}
+
+.step-delete:hover {
+  background: #fde7e9;
+  color: #a4262c;
+}
+
+.add-step-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px dashed #c8c6c4;
+  background: transparent;
+  color: #0078d4;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.add-step-btn:hover:not(:disabled) {
+  border-color: #0078d4;
+  background: #f0f9ff;
+}
+
+.add-step-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 备注区 */
+.detail-notes {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  padding: 12px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  color: #323130;
+}
+
+.detail-notes:focus {
+  border-color: #0078d4;
+}
+
+.detail-notes::placeholder {
+  color: #a19f9d;
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+}
+
+/* 详情底部 */
+.detail-footer {
+  padding: 16px;
+  margin-top: auto;
+  border-top: 1px solid #edebe9;
+}
+
+.delete-task-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: #a4262c;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.delete-task-btn:hover:not(:disabled) {
+  background: #fde7e9;
+}
+
+.delete-task-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 拖拽上传覆盖层 */
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 120, 212, 0.1);
+  border: 2px dashed #0078d4;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #0078d4;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.drop-overlay .anticon {
+  font-size: 32px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .detail-panel {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+  }
 }

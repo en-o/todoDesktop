@@ -136,6 +136,9 @@ export default function DayView() {
 
 ## 完成事项
 
+
+## 笔记
+
 `;
   };
 

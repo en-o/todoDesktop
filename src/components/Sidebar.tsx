@@ -213,50 +213,53 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
         </div>
       </div>
 
-      {/* 快速访问 */}
-      <div className="quick-access">
-        <div className="section-title">快速访问</div>
-        <div
-          className={`quick-item ${selectedDate === today.format('YYYY-MM-DD') ? 'active' : ''}`}
-          onClick={handleTodayClick}
-        >
-          <span className="quick-icon">📍</span>
-          <span>今天</span>
-        </div>
-        {todayStats.total > 0 && (
-          <div className="today-stats">
-            <div className="stat-item">
-              <span className="stat-label">待办</span>
-              <span className="stat-value">{todayStats.total}</span>
-            </div>
-            <div className="stat-item completed">
-              <span className="stat-label">已完成</span>
-              <span className="stat-value">{todayStats.completed}</span>
-            </div>
-            <div className="stat-item uncompleted">
-              <span className="stat-label">未完成</span>
-              <span className="stat-value">{todayStats.uncompleted}</span>
-            </div>
+      {/* 可滚动内容区 */}
+      <div className="sidebar-scrollable">
+        {/* 快速访问 */}
+        <div className="quick-access">
+          <div className="section-title">快速访问</div>
+          <div
+            className={`quick-item ${selectedDate === today.format('YYYY-MM-DD') ? 'active' : ''}`}
+            onClick={handleTodayClick}
+          >
+            <span className="quick-icon">📍</span>
+            <span>今天</span>
           </div>
-        )}
-      </div>
-
-      {/* 最近编辑 */}
-      <div className="recent-files">
-        {recentFiles.length > 0 && (
-          <>
-            <div className="section-title">最近编辑</div>
-            {recentFiles.map(mmdd => (
-              <div
-                key={mmdd}
-                className={`recent-item ${selectedDate.endsWith(mmdd) ? 'active' : ''}`}
-                onClick={() => handleRecentClick(mmdd)}
-              >
-                <span>{mmdd}</span>
+          {todayStats.total > 0 && (
+            <div className="today-stats">
+              <div className="stat-item">
+                <span className="stat-label">待办</span>
+                <span className="stat-value">{todayStats.total}</span>
               </div>
-            ))}
-          </>
-        )}
+              <div className="stat-item completed">
+                <span className="stat-label">已完成</span>
+                <span className="stat-value">{todayStats.completed}</span>
+              </div>
+              <div className="stat-item uncompleted">
+                <span className="stat-label">未完成</span>
+                <span className="stat-value">{todayStats.uncompleted}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 最近编辑 */}
+        <div className="recent-files">
+          {recentFiles.length > 0 && (
+            <>
+              <div className="section-title">最近编辑</div>
+              {recentFiles.map(mmdd => (
+                <div
+                  key={mmdd}
+                  className={`recent-item ${selectedDate.endsWith(mmdd) ? 'active' : ''}`}
+                  onClick={() => handleRecentClick(mmdd)}
+                >
+                  <span>{mmdd}</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
       </div>
 
       {/* 底部操作 */}

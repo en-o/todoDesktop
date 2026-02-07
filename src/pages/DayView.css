@@ -2,27 +2,28 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fff;
-  overflow: visible;
+  background: #faf9f8;
+  overflow: hidden;
 }
 
 .day-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 24px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 24px;
   background: #fff;
+  border-bottom: 1px solid #edebe9;
   flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-  overflow: visible;
 }
 
 .day-title {
   display: flex;
   align-items: baseline;
   gap: 8px;
+}
+
+.day-title h4 {
+  color: #323130;
 }
 
 .day-status {
@@ -41,7 +42,5 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: visible;
-  position: relative;
-  z-index: 2;
+  overflow: hidden;
 }

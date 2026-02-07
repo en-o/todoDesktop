@@ -277,9 +277,28 @@ async fn upload_attachment(
     let config = state.config.lock().unwrap();
 
     if let Some(cfg) = config.as_ref() {
-        file_manager
+        let relative_path = file_manager
             .upload_attachment(&cfg.local_path, &year, &month, &filename, &data)
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+
+        // 构建完整的相对路径用于 git add
+        let git_path = format!("{}/{}/{}", year, month, relative_path);
+
+        // 执行 git add
+        let mut cmd = std::process::Command::new("git");
+        cmd.args(["add", &git_path])
+            .current_dir(&cfg.local_path);
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let _ = cmd.output(); // 忽略 git add 的错误，不影响上传结果
+
+        Ok(relative_path)
     } else {
         Err("未配置本地目录".to_string())
     }

@@ -6,6 +6,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .sidebar-header {
@@ -39,6 +40,7 @@
   padding: 8px;
   background: #fff;
   border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
 }
 
 .weekday-row {
@@ -118,6 +120,13 @@
   background: #fff;
 }
 
+/* 可滚动内容区 */
+.sidebar-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
 /* 快速访问 */
 .quick-access {
   padding: 12px;
@@ -195,9 +204,7 @@
 /* 最近编辑 */
 .recent-files {
   padding: 12px;
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
+  padding-top: 0;
 }
 
 .recent-item {
@@ -225,7 +232,6 @@
   padding: 12px;
   border-top: 1px solid #f0f0f0;
   background: #fff;
-  margin-top: auto;
   flex-shrink: 0;
 }
 
