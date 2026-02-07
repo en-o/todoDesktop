@@ -235,6 +235,11 @@
   flex-shrink: 0;
 }
 
+.footer-buttons {
+  display: flex;
+  gap: 8px;
+}
+
 /* 帮助弹框内容 */
 .help-content h3 {
   font-size: 15px;

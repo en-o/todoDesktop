@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Typography, Space, Modal } from 'antd';
+import { Button, Typography, Modal } from 'antd';
 import { SettingOutlined, SyncOutlined, LeftOutlined, RightOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/tauri';
+import { getVersion } from '@tauri-apps/api/app';
+import { appWindow } from '@tauri-apps/api/window';
 import dayjs from 'dayjs';
 import { useConfigStore } from '../store/configStore';
 import './Sidebar.css';
@@ -32,6 +34,13 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
   const [helpVisible, setHelpVisible] = useState(false);
 
   const today = dayjs();
+
+  // 加载应用版本并设置窗口标题
+  useEffect(() => {
+    getVersion().then((version) => {
+      appWindow.setTitle(`Todo Desktop v${version}`);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (isConfigured) {
@@ -264,7 +273,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
 
       {/* 底部操作 */}
       <div className="sidebar-footer">
-        <Space style={{ width: '100%' }} size={8}>
+        <div className="footer-buttons">
           <Button
             icon={<SyncOutlined spin={syncing} />}
             onClick={onSync}
@@ -288,7 +297,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
           >
             帮助
           </Button>
-        </Space>
+        </div>
       </div>
 
       {/* 帮助弹框 */}
