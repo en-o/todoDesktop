@@ -284,19 +284,15 @@ async fn upload_attachment(
         // 构建完整的相对路径用于 git add
         let git_path = format!("{}/{}/{}", year, month, relative_path);
 
-        // 执行 git add
-        let mut cmd = std::process::Command::new("git");
-        cmd.args(["add", &git_path])
-            .current_dir(&cfg.local_path);
+        // 使用 GitManager 添加并提交附件
+        drop(file_manager); // 释放 file_manager 锁
+        drop(config); // 释放 config 锁
 
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
+        let git_manager = state.git_manager.lock().unwrap();
+        if let Some(git_mgr) = git_manager.as_ref() {
+            git_mgr.add_and_commit(&git_path, &format!("上传附件 {}", filename))
+                .map_err(|e| e.to_string())?;
         }
-
-        let _ = cmd.output(); // 忽略 git add 的错误，不影响上传结果
 
         Ok(relative_path)
     } else {
