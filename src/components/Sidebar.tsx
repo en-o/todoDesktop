@@ -301,7 +301,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
             我知道了
           </Button>
         ]}
-        width={600}
+        width={520}
         centered
         styles={{
           body: {
@@ -311,42 +311,42 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
         }}
       >
         <div className="help-content">
-          <h3>基本使用</h3>
+          <h3>任务管理</h3>
           <ul>
-            <li><strong>选择日期</strong>：点击日历中的日期查看或编辑当天的待办事项</li>
-            <li><strong>添加待办</strong>：在「待办事项」区域输入内容，使用工具栏的复选框按钮或输入 <code>- [ ]</code> 创建待办项</li>
-            <li><strong>完成待办</strong>：勾选待办项前的复选框，该项会自动移动到「完成事项」区域</li>
-            <li><strong>取消完成</strong>：在「完成事项」中取消勾选，该项会自动回到「待办事项」</li>
+            <li>在底部输入框添加新任务，按 <code>Enter</code> 确认</li>
+            <li>点击任务打开右侧详情面板</li>
+            <li>勾选任务完成后自动移至「已完成」</li>
+            <li>拖拽任务可调整顺序</li>
+          </ul>
+
+          <h3>步骤与备注</h3>
+          <ul>
+            <li><strong>步骤</strong>：为任务添加子步骤，全部完成后任务自动完成</li>
+            <li><strong>备注</strong>：支持 Markdown 格式，可上传附件</li>
+            <li><strong>预览</strong>：点击眼睛图标切换 Markdown 预览</li>
+          </ul>
+
+          <h3>笔记</h3>
+          <ul>
+            <li>切换到「笔记」标签记录当日笔记</li>
+            <li>支持 Markdown，标题请使用 <code>###</code> 三级标题</li>
           </ul>
 
           <h3>快捷键</h3>
           <ul>
-            <li><strong>Ctrl + S</strong>：保存当前内容</li>
-            <li><strong>Ctrl + Enter</strong>：保存当前内容</li>
+            <li><code>Ctrl + S</code> 保存并同步</li>
           </ul>
 
-          <h3>同步机制</h3>
-          <ol>
-            <li><strong>自动保存</strong>：停止输入 2 秒后自动保存到本地并提交 Git</li>
-            <li><strong>定时同步</strong>：每 5 分钟自动与远程仓库同步（需配置远程仓库）</li>
-            <li><strong>手动同步</strong>：点击「同步」按钮立即执行同步</li>
-          </ol>
-          <p style={{ marginTop: 8, color: '#666' }}>
-            <strong>同步流程</strong>：拉取远程更新 → 检测冲突 → 自动合并或弹出冲突解决窗口 → 推送本地更改
-          </p>
-
-          <h3>文件存储</h3>
+          <h3>同步</h3>
           <ul>
-            <li><strong>文件路径</strong>：年/月/MM-DD.md（如 2026/02/02-06.md）</li>
-            <li><strong>附件存储</strong>：年/月/assets/ 目录</li>
-            <li><strong>上传附件</strong>：使用工具栏上传按钮或直接粘贴图片</li>
+            <li><strong>自动保存</strong>：停止输入 2 秒后自动保存</li>
+            <li><strong>手动同步</strong>：点击「同步」推送到远程仓库</li>
           </ul>
 
-          <h3>注意事项</h3>
+          <h3>数据存储</h3>
           <ul>
-            <li>「待办事项」和「完成事项」是固定区域标题，请勿删除</li>
-            <li>已完成的待办会自动移动到「完成事项」区域，并显示删除线效果</li>
-            <li>如需修改已完成的内容，请先取消勾选使其回到「待办事项」</li>
+            <li>待办文件：<code>年/月/MM-DD.md</code></li>
+            <li>附件目录：<code>年/月/assets/</code></li>
           </ul>
         </div>
       </Modal>
