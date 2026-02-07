@@ -13,11 +13,37 @@
   padding: 16px;
   border-bottom: 1px solid #f0f0f0;
   background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .sidebar-header .app-title {
   font-size: 18px;
   color: #1890ff;
+}
+
+.header-version {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.header-version .version-text {
+  color: #bbb;
+}
+
+.header-version .version-update {
+  color: #1890ff;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #f0f7ff;
+}
+
+.header-version .version-update:hover {
+  background: #e6f4ff;
 }
 
 /* 月份导航 */

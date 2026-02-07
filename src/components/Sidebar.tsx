@@ -5,6 +5,7 @@ import { SettingOutlined, SyncOutlined, LeftOutlined, RightOutlined, QuestionCir
 import { invoke } from '@tauri-apps/api/tauri';
 import { getVersion } from '@tauri-apps/api/app';
 import { appWindow } from '@tauri-apps/api/window';
+import { open } from '@tauri-apps/api/shell';
 import dayjs from 'dayjs';
 import { useConfigStore } from '../store/configStore';
 import './Sidebar.css';
@@ -32,15 +33,22 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
   const [currentMonth, setCurrentMonth] = useState(dayjs(selectedDate));
   const [todayStats, setTodayStats] = useState<TodoStats>({ total: 0, completed: 0, uncompleted: 0 });
   const [helpVisible, setHelpVisible] = useState(false);
+  const [appVersion, setAppVersion] = useState('');
 
   const today = dayjs();
 
   // 加载应用版本并设置窗口标题
   useEffect(() => {
     getVersion().then((version) => {
+      setAppVersion(version);
       appWindow.setTitle(`Todo Desktop v${version}`);
     }).catch(() => {});
   }, []);
+
+  // 打开更新页面
+  const openReleasePage = () => {
+    open('https://github.com/en-o/todoDesktop/releases');
+  };
 
   useEffect(() => {
     if (isConfigured) {
@@ -181,6 +189,12 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
     <div className="sidebar">
       <div className="sidebar-header">
         <Text strong className="app-title">Todo</Text>
+        {appVersion && (
+          <span className="header-version">
+            <span className="version-text">v{appVersion}</span>
+            <span className="version-update" onClick={openReleasePage}>更新</span>
+          </span>
+        )}
       </div>
 
       {/* 月份导航 */}
