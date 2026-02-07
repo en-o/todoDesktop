@@ -27,9 +27,13 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       const config = await invoke<Config | null>('load_config');
       if (config) {
+        // 立即设置配置，让 UI 可以加载本地数据
         set({ config, isConfigured: true });
-        // 如果已配置，初始化 Git
-        await invoke('init_git', { config });
+
+        // 后台初始化 Git（不阻塞 UI）
+        invoke('init_git', { config }).catch((error) => {
+          console.error('初始化 Git 失败:', error);
+        });
       }
     } catch (error) {
       console.error('加载配置失败:', error);

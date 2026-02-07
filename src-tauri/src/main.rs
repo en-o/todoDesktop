@@ -149,7 +149,7 @@ async fn save_config(
 
 #[tauri::command]
 async fn load_config(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<Option<Config>, String> {
     let config_path = app_handle
@@ -167,6 +167,9 @@ async fn load_config(
 
     let config: Config = serde_json::from_str(&config_str)
         .map_err(|e| e.to_string())?;
+
+    // 立即设置配置到状态，让 read_file 等命令可以使用
+    *state.config.lock().unwrap() = Some(config.clone());
 
     Ok(Some(config))
 }
@@ -312,6 +315,15 @@ fn main() {
     let system_tray = SystemTray::new().with_menu(tray_menu);
 
     tauri::Builder::default()
+        // 单实例插件：防止重复打开
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // 当尝试打开第二个实例时，显示并聚焦现有窗口
+            if let Some(window) = app.get_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .system_tray(system_tray)
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::LeftClick { .. } => {
