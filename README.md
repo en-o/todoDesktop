@@ -32,13 +32,58 @@ npm run tauri dev
 npm run tauri build
 ```
 
+## 发布
+
+### 使用脚本发布（推荐）
+
+```bash
+# 完整发布：指定版本号
+release.bat 0.0.7
+
+# 快速发布：使用当前版本号
+release-quick.bat
+```
+
+`release.bat` 会自动：
+1. 检查未提交的更改
+2. 更新 `package.json`、`tauri.conf.json`、`Cargo.toml`、`package-lock.json` 版本号
+3. 提交更改并创建 Git 标签
+4. 推送到 GitHub 触发 CI 自动构建
+
+### 手动发布
+
+```bash
+# 1. 更新版本号（三个文件）
+#    - package.json
+#    - package-lock.json （这个如果build会自己变但是最好自己也改改）
+#    - src-tauri/tauri.conf.json
+#    - src-tauri/Cargo.toml
+
+# 2. 提交并创建标签
+git add -A
+git commit -m "chore: release v0.0.7"
+git tag -a v0.0.7 -m "Release v0.0.7"
+
+# 3. 推送
+git push origin main
+git push origin v0.0.7
+```
+
+### 构建产物
+
+| 平台 | 文件 |
+|------|------|
+| Windows | `.msi`、`.exe`、便携版 `.zip` |
+| macOS | `.dmg` |
+| Linux | `.deb`、`.AppImage` |
+
 ## 脚本说明
 
 | 脚本 | 说明 |
 |------|------|
-| `release.bat` | 完整发布：更新版本号 → 创建标签 → 推送触发 CI 构建 |
-| `release-quick.bat` | 快速发布：使用当前版本号直接发布 |
-| `sync-attachments.bat` | 同步历史附件到远程仓库（见下方说明） |
+| `release.bat` | 完整发布（见上方发布流程） |
+| `release-quick.bat` | 快速发布：使用当前版本号 |
+| `sync-attachments.bat` | 同步历史附件到远程仓库 |
 | `push-to-github.bat` | 推送代码到 GitHub |
 
 ### sync-attachments.bat
