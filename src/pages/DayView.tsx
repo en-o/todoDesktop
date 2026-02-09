@@ -14,7 +14,7 @@ const IDLE_SAVE_TIMEOUT = 3 * 60 * 1000;
 
 export default function DayView() {
   const { date } = useParams<{ date: string }>();
-  const { isConfigured, syncVersion, config, notifySyncComplete } = useConfigStore();
+  const { isConfigured, syncVersion, config } = useConfigStore();
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -91,9 +91,6 @@ export default function DayView() {
       // 同步到远程
       await syncToRemote();
 
-      // 通知同步完成，触发重新渲染
-      notifySyncComplete();
-
       if (!silent) {
         message.success('保存成功');
       }
@@ -104,7 +101,7 @@ export default function DayView() {
     } finally {
       setSaving(false);
     }
-  }, [isConfigured, getFilePath, syncToRemote, notifySyncComplete]);
+  }, [isConfigured, getFilePath, syncToRemote]);
 
   // 记录用户活动
   const recordActivity = useCallback(() => {

@@ -96,36 +96,34 @@ function parseContent(content: string): ParsedContent {
   const childTodoRegex = /^(\s{2,})-\s*\[([x\s])\]\s*(.*)$/i;
   // 缩进内容正则
   const indentRegex = /^\s{2,}/;
+  // 代码块开始/结束正则（行首可有缩进，然后是 ```）
+  const codeBlockRegex = /^\s*```/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // 检测代码块
-    if (line.trim().startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
+    // 检测 section 标题（不受代码块影响，因为 ## 开头的行不可能在代码块内有效）
+    if (todoSectionRegex.test(line)) {
+      saveCurrentItems();
+      currentSection = 'todos';
+      inCodeBlock = false;
+      continue;
     }
-
-    if (!inCodeBlock) {
-      // 检测 section 标题
-      if (todoSectionRegex.test(line)) {
-        saveCurrentItems();
-        currentSection = 'todos';
-        continue;
-      }
-      if (completedSectionRegex.test(line)) {
-        saveCurrentItems();
-        currentSection = 'completed';
-        continue;
-      }
-      if (notesSectionRegex.test(line)) {
-        saveCurrentItems();
-        currentSection = 'notes';
-        continue;
-      }
-      // 跳过日期标题
-      if (dateHeaderRegex.test(line)) {
-        continue;
-      }
+    if (completedSectionRegex.test(line)) {
+      saveCurrentItems();
+      currentSection = 'completed';
+      inCodeBlock = false;
+      continue;
+    }
+    if (notesSectionRegex.test(line)) {
+      saveCurrentItems();
+      currentSection = 'notes';
+      inCodeBlock = false;
+      continue;
+    }
+    // 跳过日期标题
+    if (dateHeaderRegex.test(line)) {
+      continue;
     }
 
     if (currentSection === 'header') continue;
@@ -136,12 +134,13 @@ function parseContent(content: string): ParsedContent {
     }
 
     if (currentSection === 'todos' || currentSection === 'completed') {
-      // 先检测子项（缩进 2+ 空格），再检测父项
-      const childMatch = !inCodeBlock && line.match(childTodoRegex);
-      const parentMatch = !inCodeBlock && !childMatch && line.match(parentTodoRegex);
+      // 父级任务检测：始终检测，不受代码块状态影响
+      // 这样即使前一个任务的备注中有未闭合的代码块，也不会影响后续任务
+      const parentMatch = line.match(parentTodoRegex);
 
       if (parentMatch) {
         saveCurrentItems();
+        inCodeBlock = false; // 重置代码块状态
         const checkChar = parentMatch[2].toLowerCase();
         currentParent = {
           id: generateId(),
@@ -153,7 +152,19 @@ function parseContent(content: string): ParsedContent {
         };
         collectingSubContent = 'parent';
         currentChild = null;
-      } else if (childMatch && currentParent) {
+        continue;
+      }
+
+      // 子任务和内容收集：需要考虑代码块状态
+      // 检测代码块（只在缩进内容中检测）
+      if (codeBlockRegex.test(line)) {
+        inCodeBlock = !inCodeBlock;
+      }
+
+      // 子任务检测（需要在代码块外）
+      const childMatch = !inCodeBlock && currentParent && line.match(childTodoRegex);
+
+      if (childMatch && currentParent) {
         // 遇到新子任务，先保存之前的子任务
         if (currentChild) {
           currentChild.subContent = currentChild.subContent.trimEnd();
