@@ -4,6 +4,7 @@ import { Typography, message } from 'antd';
 import { invoke } from '@tauri-apps/api/tauri';
 import dayjs from 'dayjs';
 import { useConfigStore } from '../store/configStore';
+import { usePastUncompletedStore } from '../store/pastUncompletedStore';
 import MarkdownEditor from '../components/MarkdownEditor';
 import './DayView.css';
 
@@ -15,6 +16,7 @@ const IDLE_SAVE_TIMEOUT = 3 * 60 * 1000;
 export default function DayView() {
   const { date } = useParams<{ date: string }>();
   const { isConfigured, syncVersion, config } = useConfigStore();
+  const { executePendingDeletions } = usePastUncompletedStore();
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -91,6 +93,9 @@ export default function DayView() {
       // 触发统计更新
       window.dispatchEvent(new CustomEvent('save-stats'));
 
+      // 执行待删除的往期任务（移动到今日后删除原任务）
+      executePendingDeletions();
+
       // 同步到远程
       await syncToRemote();
 
@@ -104,7 +109,7 @@ export default function DayView() {
     } finally {
       setSaving(false);
     }
-  }, [isConfigured, getFilePath, syncToRemote]);
+  }, [isConfigured, getFilePath, syncToRemote, executePendingDeletions]);
 
   // 记录用户活动
   const recordActivity = useCallback(() => {
@@ -184,6 +189,8 @@ export default function DayView() {
           const filepath = getFilePath();
           await invoke('write_file', { filepath, content: contentRef.current });
           setIsDirty(false);
+          // 执行待删除的往期任务
+          executePendingDeletions();
         } catch (error) {
           console.error('保存失败:', error);
         }
@@ -194,7 +201,7 @@ export default function DayView() {
 
     window.addEventListener('trigger-save', handleTriggerSave);
     return () => window.removeEventListener('trigger-save', handleTriggerSave);
-  }, [isConfigured, getFilePath]);
+  }, [isConfigured, getFilePath, executePendingDeletions]);
 
   // 3分钟无操作自动保存
   useEffect(() => {

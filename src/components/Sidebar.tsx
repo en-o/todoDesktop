@@ -26,7 +26,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing, o
   const navigate = useNavigate();
   const { isConfigured, syncVersion, config } = useConfigStore();
   const { todayStats, stats, loadStats, recalculateStats, loading: statsLoading } = useStatsStore();
-  const { tasks: pastTasks, loading: pastLoading, scanTasks, dismissTask, deleteTask, addToTodayAndDelete } = usePastUncompletedStore();
+  const { tasks: pastTasks, loading: pastLoading, scanTasks, dismissTask, deleteTask, markForDeletion } = usePastUncompletedStore();
   const [daysWithTodos, setDaysWithTodos] = useState<Set<string>>(new Set());
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(dayjs(selectedDate));
@@ -134,13 +134,14 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing, o
     setPastVisible(true);
   };
 
-  // 加入当日（先添加到今日，然后删除原任务）
+  // 加入当日（先添加到今日，保存后再删除原任务）
   const handleAddToToday = (task: PastUncompletedTask) => {
     if (onAddTask) {
+      // 1. 标记待删除（等保存后再删除原任务）
+      markForDeletion(task);
+      // 2. 添加到今日
       onAddTask(task.text);
-      message.success('已加入今日待办');
-      // 删除原任务（后台执行，不等待）
-      addToTodayAndDelete(task);
+      message.success('已加入今日待办，保存后将删除原任务');
     }
   };
 

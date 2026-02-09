@@ -18,6 +18,7 @@ interface PastUncompletedState {
   loading: boolean;
   lastChecked: string;
   processingIds: Set<string>; // 正在处理的任务ID
+  pendingDeletions: PastUncompletedTask[]; // 待删除的任务（等待今日保存后删除）
 
   // 扫描往期未完成任务
   scanTasks: () => Promise<void>;
@@ -28,8 +29,11 @@ interface PastUncompletedState {
   // 删除任务（从源文件删除）
   deleteTask: (task: PastUncompletedTask) => Promise<void>;
 
-  // 添加到今日并删除原任务
-  addToTodayAndDelete: (task: PastUncompletedTask) => Promise<void>;
+  // 标记任务待删除（移动到今日后，等保存完成再删除）
+  markForDeletion: (task: PastUncompletedTask) => void;
+
+  // 执行待删除的任务删除（今日保存完成后调用）
+  executePendingDeletions: () => Promise<void>;
 
   // 加入当日后从列表移除
   removeFromList: (id: string) => void;
@@ -47,6 +51,7 @@ export const usePastUncompletedStore = create<PastUncompletedState>((set, get) =
   loading: false,
   lastChecked: '',
   processingIds: new Set(),
+  pendingDeletions: [] as PastUncompletedTask[], // 待删除的任务
 
   isProcessing: (id: string) => get().processingIds.has(id),
 
@@ -146,35 +151,33 @@ export const usePastUncompletedStore = create<PastUncompletedState>((set, get) =
     }
   },
 
-  addToTodayAndDelete: async (task: PastUncompletedTask) => {
-    const { processingIds } = get();
-
-    // 添加到处理中
-    const newProcessingIds = new Set(processingIds);
-    newProcessingIds.add(task.id);
-    set({ processingIds: newProcessingIds });
-
-    // 先从列表移除（立即响应）
+  // 标记任务待删除（移动到今日后调用，等保存完成再真正删除）
+  markForDeletion: (task: PastUncompletedTask) => {
+    // 从列表移除
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== task.id),
+      pendingDeletions: [...state.pendingDeletions, task],
     }));
+  },
 
-    try {
-      // 删除原任务
-      await invoke('delete_past_task', {
-        sourceDate: task.sourceDate,
-        text: task.text,
-      });
-    } catch (error) {
-      console.error('删除原任务失败:', error);
-      // 不恢复，因为已经添加到今日了
-    } finally {
-      // 从处理中移除
-      set((state) => {
-        const updated = new Set(state.processingIds);
-        updated.delete(task.id);
-        return { processingIds: updated };
-      });
+  // 执行所有待删除的任务删除（今日保存完成后调用）
+  executePendingDeletions: async () => {
+    const { pendingDeletions } = get();
+    if (pendingDeletions.length === 0) return;
+
+    // 清空待删除列表
+    set({ pendingDeletions: [] });
+
+    // 逐个删除
+    for (const task of pendingDeletions) {
+      try {
+        await invoke('delete_past_task', {
+          sourceDate: task.sourceDate,
+          text: task.text,
+        });
+      } catch (error) {
+        console.error('删除原任务失败:', task.text, error);
+      }
     }
   },
 
