@@ -403,6 +403,8 @@ export default function MarkdownEditor({
   const isEditingRef = useRef(false);
   const lastParsedRef = useRef({ dateStr: '', valueHash: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stepInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const [focusStepId, setFocusStepId] = useState<string | null>(null);
 
   // 计算简单的内容哈希（用于判断内容是否真的变化）
   const getValueHash = (v: string) => v ? `${v.length}-${v.substring(0, 50)}` : '';
@@ -441,6 +443,19 @@ export default function MarkdownEditor({
       setSelectedId(null);
     }
   }, [dateStr, value]);
+
+  // 聚焦到新创建的步骤
+  useEffect(() => {
+    if (focusStepId) {
+      setTimeout(() => {
+        const input = stepInputRefs.current.get(focusStepId);
+        if (input) {
+          input.focus();
+        }
+        setFocusStepId(null);
+      }, 50);
+    }
+  }, [focusStepId]);
 
   // 自定义 Markdown 组件，处理本地图片路径
   const markdownComponents = useMemo(() => ({
@@ -694,6 +709,9 @@ export default function MarkdownEditor({
       setTodos(newTodos);
       syncToParent(newTodos, completed, notes);
     }
+
+    // 聚焦到新步骤
+    setFocusStepId(newChild.id);
   }, [todos, completed, notes, syncToParent]);
 
   // 更新任务文本
@@ -953,10 +971,23 @@ export default function MarkdownEditor({
                     {child.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
                   </div>
                   <input
+                    ref={(el) => {
+                      if (el) {
+                        stepInputRefs.current.set(child.id, el);
+                      } else {
+                        stepInputRefs.current.delete(child.id);
+                      }
+                    }}
                     type="text"
                     className={`step-text ${child.checked ? 'checked' : ''}`}
                     value={child.text}
                     onChange={(e) => updateTodoText(child.id, e.target.value, isSelectedCompleted, selectedTodo.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addStep(selectedTodo.id);
+                      }
+                    }}
                     placeholder="步骤内容"
                     disabled={disabled}
                   />
