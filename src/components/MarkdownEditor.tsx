@@ -777,6 +777,34 @@ export default function MarkdownEditor({
     syncToParent(newTodos, completed, notes);
   }, [newTodoText, todos, completed, notes, syncToParent]);
 
+  // 添加指定文本的 todo（用于往期未完成加入当日）
+  const addTodoWithText = useCallback((text: string) => {
+    if (!text.trim()) return;
+
+    const newItem: TodoItem = {
+      id: generateId(),
+      text: text.trim(),
+      checked: false,
+      subContent: '',
+      children: [],
+      collapsed: false,
+    };
+
+    const newTodos = [...todos, newItem];
+    setTodos(newTodos);
+    syncToParent(newTodos, completed, notes);
+  }, [todos, completed, notes, syncToParent]);
+
+  // 监听从往期未完成添加任务的事件
+  useEffect(() => {
+    const handleAddFromPast = (e: CustomEvent<{ text: string }>) => {
+      addTodoWithText(e.detail.text);
+    };
+
+    window.addEventListener('add-task-from-past', handleAddFromPast as EventListener);
+    return () => window.removeEventListener('add-task-from-past', handleAddFromPast as EventListener);
+  }, [addTodoWithText]);
+
   // 添加子步骤
   const addStep = useCallback((parentId: string) => {
     const newChild: TodoItem = {

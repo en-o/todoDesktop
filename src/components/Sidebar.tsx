@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Typography, Modal } from 'antd';
-import { SettingOutlined, SyncOutlined, LeftOutlined, RightOutlined, QuestionCircleOutlined, BarChartOutlined } from '@ant-design/icons';
+import { Button, Typography, Modal, message } from 'antd';
+import { SettingOutlined, SyncOutlined, LeftOutlined, RightOutlined, QuestionCircleOutlined, SearchOutlined, DeleteOutlined, PlusOutlined, CloseOutlined } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/tauri';
 import { getVersion } from '@tauri-apps/api/app';
 import { appWindow } from '@tauri-apps/api/window';
@@ -9,6 +9,7 @@ import { open } from '@tauri-apps/api/shell';
 import dayjs from 'dayjs';
 import { useConfigStore } from '../store/configStore';
 import { useStatsStore } from '../store/statsStore';
+import { usePastUncompletedStore, PastUncompletedTask } from '../store/pastUncompletedStore';
 import './Sidebar.css';
 
 const { Text } = Typography;
@@ -18,20 +19,24 @@ interface SidebarProps {
   onDateSelect: (date: string) => void;
   onSync: () => void;
   syncing: boolean;
+  onAddTask?: (text: string) => void;
 }
 
-export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }: SidebarProps) {
+export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing, onAddTask }: SidebarProps) {
   const navigate = useNavigate();
   const { isConfigured, syncVersion, config } = useConfigStore();
   const { todayStats, stats, loadStats, recalculateStats, loading: statsLoading } = useStatsStore();
+  const { tasks: pastTasks, loading: pastLoading, scanTasks, dismissTask, deleteTask, removeFromList } = usePastUncompletedStore();
   const [daysWithTodos, setDaysWithTodos] = useState<Set<string>>(new Set());
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(dayjs(selectedDate));
   const [helpVisible, setHelpVisible] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
+  const [pastVisible, setPastVisible] = useState(false);
   const [appVersion, setAppVersion] = useState('');
 
   const today = dayjs();
+  const isToday = selectedDate === today.format('YYYY-MM-DD');
 
   // 加载应用版本并设置窗口标题
   useEffect(() => {
@@ -119,6 +124,41 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
     onDateSelect(`${year}-${mmdd}`);
   };
 
+  // 扫描往期未完成任务
+  const handleScanPast = async () => {
+    if (!isToday) {
+      message.warning('此功能仅在查看当日时可用');
+      return;
+    }
+    await scanTasks();
+    setPastVisible(true);
+  };
+
+  // 加入当日
+  const handleAddToToday = async (task: PastUncompletedTask) => {
+    if (onAddTask) {
+      onAddTask(task.text);
+      removeFromList(task.id);
+      message.success('已加入今日待办');
+    }
+  };
+
+  // 删除任务
+  const handleDeleteTask = async (task: PastUncompletedTask) => {
+    try {
+      await deleteTask(task);
+      message.success('已删除');
+    } catch (error) {
+      message.error('删除失败');
+    }
+  };
+
+  // 忽略任务
+  const handleDismissTask = async (task: PastUncompletedTask) => {
+    await dismissTask(task.id);
+    message.info('已忽略，不再提示');
+  };
+
   // 生成日历网格
   const calendarDays = useMemo(() => {
     const startOfMonth = currentMonth.startOf('month');
@@ -176,14 +216,14 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
             }
 
             const dateStr = day.format('YYYY-MM-DD');
-            const isToday = day.isSame(today, 'day');
+            const isDayToday = day.isSame(today, 'day');
             const isSelected = dateStr === selectedDate;
             const hasTodo = daysWithTodos.has(dateStr);
 
             return (
               <div
                 key={dateStr}
-                className={`day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${hasTodo ? 'has-todo' : ''}`}
+                className={`day-cell ${isDayToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${hasTodo ? 'has-todo' : ''}`}
                 onClick={() => handleDateClick(day)}
               >
                 {day.date()}
@@ -228,6 +268,19 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
             <span className="quick-icon">📊</span>
             <span>查看统计</span>
           </div>
+          {/* 往期未完成事项 - 只在当日显示 */}
+          {isToday && (
+            <div
+              className={`quick-item ${pastTasks.length > 0 ? 'has-badge' : ''}`}
+              onClick={handleScanPast}
+            >
+              <span className="quick-icon">📋</span>
+              <span>往期未完成</span>
+              {pastTasks.length > 0 && (
+                <span className="badge">{pastTasks.length}</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 最近编辑 */}
@@ -437,6 +490,85 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
               <Button onClick={recalculateStats} loading={statsLoading}>
                 立即计算
               </Button>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* 往期未完成事项弹框 */}
+      <Modal
+        title={
+          <div className="past-modal-header">
+            <span>往期未完成事项</span>
+            <Button
+              type="text"
+              icon={<SearchOutlined />}
+              onClick={scanTasks}
+              loading={pastLoading}
+              size="small"
+            >
+              重新扫描
+            </Button>
+          </div>
+        }
+        open={pastVisible}
+        onCancel={() => setPastVisible(false)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setPastVisible(false)}>
+            关闭
+          </Button>
+        ]}
+        width={560}
+        centered
+        styles={{
+          body: {
+            maxHeight: 'calc(70vh - 110px)',
+            overflowY: 'auto',
+          }
+        }}
+      >
+        <div className="past-content">
+          {pastLoading ? (
+            <div className="past-loading">扫描中...</div>
+          ) : pastTasks.length === 0 ? (
+            <div className="past-empty">
+              <span className="past-empty-icon">🎉</span>
+              <p>没有往期未完成的任务</p>
+              <span className="past-empty-hint">所有历史任务都已完成</span>
+            </div>
+          ) : (
+            <div className="past-list">
+              {pastTasks.map(task => (
+                <div key={task.id} className="past-item">
+                  <div className="past-item-content">
+                    <span className="past-item-date">{task.sourceDate}</span>
+                    <span className="past-item-text">{task.text}</span>
+                  </div>
+                  <div className="past-item-actions">
+                    <button
+                      className="past-action-btn add"
+                      onClick={() => handleAddToToday(task)}
+                      title="加入今日待办"
+                    >
+                      <PlusOutlined />
+                    </button>
+                    <button
+                      className="past-action-btn delete"
+                      onClick={() => handleDeleteTask(task)}
+                      title="删除任务"
+                    >
+                      <DeleteOutlined />
+                    </button>
+                    <button
+                      className="past-action-btn dismiss"
+                      onClick={() => handleDismissTask(task)}
+                      title="忽略，不再提示"
+                    >
+                      <CloseOutlined />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

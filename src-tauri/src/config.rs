@@ -88,3 +88,25 @@ pub struct Statistics {
     /// 汇总统计
     pub summary: StatsSummary,
 }
+
+/// 往期未完成任务项
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PastUncompletedTask {
+    /// 任务来源日期 (YYYY-MM-DD)
+    pub source_date: String,
+    /// 任务文本
+    pub text: String,
+    /// 唯一标识 (source_date:text的hash)
+    pub id: String,
+}
+
+/// 往期未完成任务数据
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PastUncompleted {
+    /// 已忽略的任务ID列表
+    pub dismissed: Vec<String>,
+    /// 最后检查日期
+    pub last_checked: String,
+}

@@ -7,7 +7,7 @@ mod config;
 
 use git_manager::GitManager;
 use file_manager::FileManager;
-use config::{Config, GitInfo, DataPointer, Statistics, DailyStats, StatsSummary};
+use config::{Config, GitInfo, DataPointer, Statistics, DailyStats, StatsSummary, PastUncompleted, PastUncompletedTask};
 use std::sync::Mutex;
 use std::path::Path;
 use std::collections::HashMap;
@@ -738,6 +738,271 @@ async fn update_daily_stats(
     }
 }
 
+/// 获取往期未完成数据文件路径
+fn get_past_uncompleted_path(local_path: &str) -> std::path::PathBuf {
+    Path::new(local_path).join(".desktop_data").join("past_uncompleted.json")
+}
+
+/// 生成任务ID
+fn generate_task_id(source_date: &str, text: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    format!("{}:{}", source_date, text).hash(&mut hasher);
+    format!("{:x}", hasher.finish())
+}
+
+/// 加载往期未完成数据
+#[tauri::command]
+async fn load_past_uncompleted(state: State<'_, AppState>) -> Result<PastUncompleted, String> {
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        let path = get_past_uncompleted_path(&cfg.local_path);
+
+        if path.exists() {
+            let content = fs::read_to_string(&path)
+                .map_err(|e| e.to_string())?;
+            let data: PastUncompleted = serde_json::from_str(&content)
+                .map_err(|e| e.to_string())?;
+            Ok(data)
+        } else {
+            Ok(PastUncompleted::default())
+        }
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
+/// 保存往期未完成数据
+#[tauri::command]
+async fn save_past_uncompleted(state: State<'_, AppState>, data: PastUncompleted) -> Result<(), String> {
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        let path = get_past_uncompleted_path(&cfg.local_path);
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+
+        let content = serde_json::to_string_pretty(&data)
+            .map_err(|e| e.to_string())?;
+        fs::write(&path, &content).map_err(|e| e.to_string())?;
+
+        // 提交到 git
+        drop(config);
+        let git_manager = state.git_manager.lock().unwrap();
+        if let Some(git_mgr) = git_manager.as_ref() {
+            let git_path = ".desktop_data/past_uncompleted.json";
+            let _ = git_mgr.add_and_commit(git_path, "更新往期未完成数据");
+        }
+
+        Ok(())
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
+/// 扫描往期未完成任务（主动扫描）
+#[tauri::command]
+async fn scan_past_uncompleted(state: State<'_, AppState>) -> Result<Vec<PastUncompletedTask>, String> {
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        let base_path = Path::new(&cfg.local_path);
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let today_date = NaiveDate::parse_from_str(&today, "%Y-%m-%d")
+            .map_err(|e| e.to_string())?;
+
+        // 加载已忽略列表
+        let past_path = get_past_uncompleted_path(&cfg.local_path);
+        let dismissed: Vec<String> = if past_path.exists() {
+            let content = fs::read_to_string(&past_path).unwrap_or_default();
+            let data: PastUncompleted = serde_json::from_str(&content).unwrap_or_default();
+            data.dismissed
+        } else {
+            vec![]
+        };
+
+        let mut tasks: Vec<PastUncompletedTask> = vec![];
+        let uncompleted_regex = Regex::new(r"^-\s*\[\s\]\s*(.+)$").unwrap();
+
+        // 遍历年份目录
+        if let Ok(year_entries) = fs::read_dir(base_path) {
+            for year_entry in year_entries.flatten() {
+                let year_path = year_entry.path();
+                let year_name = year_entry.file_name().to_string_lossy().to_string();
+
+                if !year_path.is_dir() || year_name.starts_with('.') || year_name.parse::<u32>().is_err() {
+                    continue;
+                }
+
+                // 遍历月份目录
+                if let Ok(month_entries) = fs::read_dir(&year_path) {
+                    for month_entry in month_entries.flatten() {
+                        let month_path = month_entry.path();
+                        let month_name = month_entry.file_name().to_string_lossy().to_string();
+
+                        if !month_path.is_dir() || month_name.parse::<u32>().is_err() {
+                            continue;
+                        }
+
+                        // 遍历日期文件
+                        if let Ok(file_entries) = fs::read_dir(&month_path) {
+                            for file_entry in file_entries.flatten() {
+                                let file_name = file_entry.file_name().to_string_lossy().to_string();
+
+                                // 匹配 MM-DD.md 格式
+                                if let Some(caps) = Regex::new(r"^(\d{2}-\d{2})\.md$")
+                                    .unwrap()
+                                    .captures(&file_name)
+                                {
+                                    let date_str = format!("{}-{}", year_name, &caps[1]);
+
+                                    // 只检查今天之前的日期
+                                    if let Ok(date) = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d") {
+                                        if date >= today_date {
+                                            continue;
+                                        }
+
+                                        // 读取文件并查找未完成任务
+                                        if let Ok(content) = fs::read_to_string(file_entry.path()) {
+                                            let mut in_todo_section = false;
+                                            let mut in_completed_section = false;
+
+                                            for line in content.lines() {
+                                                // 检测 section
+                                                if line.contains("## 待办事项") {
+                                                    in_todo_section = true;
+                                                    in_completed_section = false;
+                                                    continue;
+                                                }
+                                                if line.contains("## 完成事项") || line.contains("## 笔记") {
+                                                    in_todo_section = false;
+                                                    if line.contains("## 完成事项") {
+                                                        in_completed_section = true;
+                                                    }
+                                                    continue;
+                                                }
+
+                                                // 只在待办事项区域查找
+                                                if in_todo_section {
+                                                    // 匹配未完成的父级任务（不以空格开头）
+                                                    if let Some(caps) = uncompleted_regex.captures(line.trim_start_matches(' ')) {
+                                                        // 确保不是缩进的子任务
+                                                        if !line.starts_with("  ") {
+                                                            let text = caps[1].trim().to_string();
+                                                            if !text.is_empty() {
+                                                                let id = generate_task_id(&date_str, &text);
+
+                                                                // 检查是否已忽略
+                                                                if !dismissed.contains(&id) {
+                                                                    tasks.push(PastUncompletedTask {
+                                                                        source_date: date_str.clone(),
+                                                                        text,
+                                                                        id,
+                                                                    });
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 按日期排序（最近的在前）
+        tasks.sort_by(|a, b| b.source_date.cmp(&a.source_date));
+
+        Ok(tasks)
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
+/// 从源文件删除任务
+#[tauri::command]
+async fn delete_past_task(
+    state: State<'_, AppState>,
+    source_date: String,
+    text: String,
+) -> Result<(), String> {
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        // 解析日期获取文件路径
+        let parts: Vec<&str> = source_date.split('-').collect();
+        if parts.len() != 3 {
+            return Err("日期格式错误".to_string());
+        }
+        let year = parts[0];
+        let month = parts[1];
+        let day = format!("{}-{}", parts[1], parts[2]);
+
+        let filepath = Path::new(&cfg.local_path)
+            .join(year)
+            .join(month)
+            .join(format!("{}.md", day));
+
+        if !filepath.exists() {
+            return Err("源文件不存在".to_string());
+        }
+
+        // 读取文件内容
+        let content = fs::read_to_string(&filepath)
+            .map_err(|e| e.to_string())?;
+
+        // 移除匹配的任务行及其子内容
+        let mut new_lines: Vec<String> = vec![];
+        let mut skip_children = false;
+        let task_regex = Regex::new(&format!(r"^-\s*\[\s\]\s*{}$", regex::escape(&text))).unwrap();
+
+        for line in content.lines() {
+            if skip_children {
+                // 如果是缩进的行（子任务或子内容），继续跳过
+                if line.starts_with("  ") || line.trim().is_empty() {
+                    continue;
+                } else {
+                    skip_children = false;
+                }
+            }
+
+            // 检查是否是要删除的任务
+            if task_regex.is_match(line.trim_start_matches(' ')) && !line.starts_with("  ") {
+                skip_children = true;
+                continue;
+            }
+
+            new_lines.push(line.to_string());
+        }
+
+        // 写回文件
+        let new_content = new_lines.join("\n");
+        fs::write(&filepath, &new_content)
+            .map_err(|e| e.to_string())?;
+
+        // 提交到 git
+        drop(config);
+        let git_manager = state.git_manager.lock().unwrap();
+        if let Some(git_mgr) = git_manager.as_ref() {
+            let git_path = format!("{}/{}/{}.md", year, month, day);
+            let _ = git_mgr.add_and_commit(&git_path, &format!("删除往期任务: {}", text));
+        }
+
+        Ok(())
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
 fn main() {
     // 检查是否带有 --quit 参数（用于更新安装时关闭应用）
     let args: Vec<String> = std::env::args().collect();
@@ -839,6 +1104,10 @@ fn main() {
             save_stats,
             recalculate_stats,
             update_daily_stats,
+            load_past_uncompleted,
+            save_past_uncompleted,
+            scan_past_uncompleted,
+            delete_past_task,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

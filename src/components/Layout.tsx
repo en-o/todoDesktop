@@ -44,6 +44,11 @@ export default function Layout() {
     setSyncing(false);
   }, [sync]);
 
+  // 添加任务（从往期未完成加入当日）
+  const handleAddTask = useCallback((text: string) => {
+    window.dispatchEvent(new CustomEvent('add-task-from-past', { detail: { text } }));
+  }, []);
+
   const isSettingsPage = location.pathname === '/settings';
   const showConfigAlert = !isConfigured && !isSettingsPage;
 
@@ -63,6 +68,7 @@ export default function Layout() {
         onDateSelect={handleDateSelect}
         onSync={handleSync}
         syncing={syncing}
+        onAddTask={handleAddTask}
       />
       <div className="main-content">
         {showConfigAlert && (
