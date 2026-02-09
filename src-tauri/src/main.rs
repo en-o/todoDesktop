@@ -19,6 +19,33 @@ use tauri::{
     SystemTrayMenuItem, WindowEvent,
 };
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// 在后台线程中异步执行 git 同步（不阻塞 UI）
+fn sync_git_async(local_path: String) {
+    std::thread::spawn(move || {
+        let mut pull_cmd = std::process::Command::new("git");
+        pull_cmd.args(["pull"]).current_dir(&local_path);
+
+        #[cfg(windows)]
+        pull_cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let _ = pull_cmd.output();
+
+        let mut push_cmd = std::process::Command::new("git");
+        push_cmd.args(["push"]).current_dir(&local_path);
+
+        #[cfg(windows)]
+        push_cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let _ = push_cmd.output();
+    });
+}
+
 // 全局状态
 struct AppState {
     git_manager: Mutex<Option<GitManager>>,
@@ -1060,23 +1087,25 @@ fn main() {
                     }
                 }
                 "sync" => {
-                    // 手动同步
+                    // 手动同步（异步执行，不阻塞 UI）
                     let state: tauri::State<AppState> = app.state();
-                    let git_manager = state.git_manager.lock().unwrap();
-                    if let Some(git_mgr) = git_manager.as_ref() {
-                        let _ = git_mgr.pull();
-                        let _ = git_mgr.push();
+                    let config = state.config.lock().unwrap();
+                    if let Some(cfg) = config.as_ref() {
+                        let local_path = cfg.local_path.clone();
+                        drop(config);
+                        sync_git_async(local_path);
                     }
                 }
                 "quit" => {
-                    // 退出前同步
+                    // 退出前同步（异步执行，不阻塞退出）
                     let state: tauri::State<AppState> = app.state();
-                    let git_manager = state.git_manager.lock().unwrap();
-                    if let Some(git_mgr) = git_manager.as_ref() {
-                        let _ = git_mgr.pull();
-                        let _ = git_mgr.push();
+                    let config = state.config.lock().unwrap();
+                    if let Some(cfg) = config.as_ref() {
+                        let local_path = cfg.local_path.clone();
+                        drop(config);
+                        // 启动异步同步（git 命令会在独立进程中执行）
+                        sync_git_async(local_path);
                     }
-                    drop(git_manager);
                     app.exit(0);
                 }
                 _ => {}
@@ -1085,21 +1114,21 @@ fn main() {
         })
         .on_window_event(|event| {
             match event.event() {
-                // 点击关闭按钮时同步并隐藏到托盘
+                // 点击关闭按钮时隐藏到托盘，异步同步数据
                 WindowEvent::CloseRequested { api, .. } => {
-                    // 同步数据
+                    // 先隐藏窗口（立即响应用户操作）
+                    let _ = event.window().hide();
+                    api.prevent_close();
+
+                    // 异步同步数据（不阻塞窗口隐藏操作）
                     let app = event.window().app_handle();
                     let state: tauri::State<AppState> = app.state();
-                    let git_manager = state.git_manager.lock().unwrap();
-                    if let Some(git_mgr) = git_manager.as_ref() {
-                        let _ = git_mgr.pull();
-                        let _ = git_mgr.push();
+                    let config = state.config.lock().unwrap();
+                    if let Some(cfg) = config.as_ref() {
+                        let local_path = cfg.local_path.clone();
+                        drop(config);
+                        sync_git_async(local_path);
                     }
-                    drop(git_manager);
-
-                    // 隐藏到托盘
-                    event.window().hide().unwrap();
-                    api.prevent_close();
                 }
                 _ => {}
             }
