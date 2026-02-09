@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Typography, message, Spin } from 'antd';
+import { Typography, message } from 'antd';
 import { invoke } from '@tauri-apps/api/tauri';
 import dayjs from 'dayjs';
 import { useConfigStore } from '../store/configStore';
@@ -13,7 +13,6 @@ export default function DayView() {
   const { date } = useParams<{ date: string }>();
   const { isConfigured, syncVersion, config } = useConfigStore();
   const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -103,7 +102,6 @@ export default function DayView() {
       const syncChanged = syncVersion > 0 && lastLoadedRef.current.syncVersion !== syncVersion;
 
       // 只有日期变化或手动同步完成时才重新加载
-      // 如果有未保存的更改且日期没变，不重新加载
       if (!dateChanged && !syncChanged) {
         return;
       }
@@ -112,11 +110,6 @@ export default function DayView() {
         // 有未保存的更改，只更新 syncVersion 记录，不重新加载
         lastLoadedRef.current.syncVersion = syncVersion;
         return;
-      }
-
-      // 只有日期变化时才显示 loading
-      if (dateChanged) {
-        setLoading(true);
       }
 
       try {
@@ -131,10 +124,6 @@ export default function DayView() {
         if (!cancelled) {
           setContent(getDefaultContent());
           lastLoadedRef.current = { date, syncVersion };
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
         }
       }
     };
@@ -205,24 +194,18 @@ export default function DayView() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="loading-container">
-          <Spin size="large" />
-        </div>
-      ) : (
-        <div className="editor-container">
-          <MarkdownEditor
-            value={content}
-            onChange={handleContentChange}
-            onSave={handleSave}
-            disabled={!isConfigured}
-            placeholder="开始编写今天的待办事项..."
-            year={year}
-            month={month}
-            day={day}
-          />
-        </div>
-      )}
+      <div className="editor-container">
+        <MarkdownEditor
+          value={content}
+          onChange={handleContentChange}
+          onSave={handleSave}
+          disabled={!isConfigured}
+          placeholder="开始编写今天的待办事项..."
+          year={year}
+          month={month}
+          day={day}
+        />
+      </div>
     </div>
   );
 }
