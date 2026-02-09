@@ -440,6 +440,24 @@ export default function MarkdownEditor({
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [focusStepId, setFocusStepId] = useState<string | null>(null);
 
+  // 用于事件处理的 refs（确保获取最新值）
+  const todosRef = useRef(todos);
+  const completedRef = useRef(completed);
+  const notesRef = useRef(notes);
+
+  // 同步 refs
+  useEffect(() => {
+    todosRef.current = todos;
+  }, [todos]);
+
+  useEffect(() => {
+    completedRef.current = completed;
+  }, [completed]);
+
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+
   // 计算任务总数（包括子任务）
   const countTasks = useCallback((items: TodoItem[]) => {
     let total = 0;
@@ -779,7 +797,7 @@ export default function MarkdownEditor({
 
   // 添加指定文本的 todo（用于往期未完成加入当日）
   const addTodoWithText = useCallback((text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || !dateStr) return;
 
     const newItem: TodoItem = {
       id: generateId(),
@@ -790,10 +808,23 @@ export default function MarkdownEditor({
       collapsed: false,
     };
 
-    const newTodos = [...todos, newItem];
+    // 使用 refs 获取最新值
+    const currentTodos = todosRef.current;
+    const currentCompleted = completedRef.current;
+    const currentNotes = notesRef.current;
+
+    const newTodos = [...currentTodos, newItem];
     setTodos(newTodos);
-    syncToParent(newTodos, completed, notes);
-  }, [todos, completed, notes, syncToParent]);
+
+    // 同步到父组件
+    isEditingRef.current = true;
+    const markdown = buildMarkdown(dateStr, newTodos, currentCompleted, currentNotes);
+    lastParsedRef.current = { dateStr, valueHash: getValueHash(markdown) };
+    onChange(markdown);
+    setTimeout(() => {
+      isEditingRef.current = false;
+    }, 500);
+  }, [dateStr, onChange]);
 
   // 监听从往期未完成添加任务的事件
   useEffect(() => {
