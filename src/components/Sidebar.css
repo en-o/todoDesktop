@@ -341,3 +341,111 @@
   margin: 8px 0;
   font-size: 13px;
 }
+
+/* 统计弹框内容 */
+.stats-content {
+  padding: 8px 0;
+}
+
+.stats-section {
+  margin-bottom: 20px;
+}
+
+.stats-section:last-child {
+  margin-bottom: 0;
+}
+
+.stats-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stats-card {
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stats-card.completed {
+  background: #f6ffed;
+}
+
+.stats-card.uncompleted {
+  background: #fffbe6;
+}
+
+.stats-card.streak {
+  background: #fff7e6;
+}
+
+.stats-number {
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+}
+
+.stats-card.completed .stats-number {
+  color: #52c41a;
+}
+
+.stats-card.uncompleted .stats-number {
+  color: #faad14;
+}
+
+.stats-card.streak .stats-number {
+  color: #fa8c16;
+}
+
+.stats-label {
+  font-size: 12px;
+  color: #666;
+}
+
+.stats-list {
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 4px 0;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.stats-row span:first-child {
+  color: #666;
+}
+
+.stats-row span:last-child {
+  color: #333;
+  font-weight: 500;
+}
+
+.stats-row.hint span {
+  color: #999;
+  font-weight: normal;
+  font-size: 12px;
+}
+
+.stats-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.stats-empty p {
+  margin-bottom: 16px;
+}

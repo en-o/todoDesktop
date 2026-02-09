@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Typography, Modal } from 'antd';
-import { SettingOutlined, SyncOutlined, LeftOutlined, RightOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { SettingOutlined, SyncOutlined, LeftOutlined, RightOutlined, QuestionCircleOutlined, BarChartOutlined } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/tauri';
 import { getVersion } from '@tauri-apps/api/app';
 import { appWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/api/shell';
 import dayjs from 'dayjs';
 import { useConfigStore } from '../store/configStore';
+import { useStatsStore } from '../store/statsStore';
 import './Sidebar.css';
 
 const { Text } = Typography;
@@ -19,20 +20,15 @@ interface SidebarProps {
   syncing: boolean;
 }
 
-interface TodoStats {
-  total: number;
-  completed: number;
-  uncompleted: number;
-}
-
 export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }: SidebarProps) {
   const navigate = useNavigate();
   const { isConfigured, syncVersion, config } = useConfigStore();
+  const { todayStats, stats, loadStats, recalculateStats, loading: statsLoading } = useStatsStore();
   const [daysWithTodos, setDaysWithTodos] = useState<Set<string>>(new Set());
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(dayjs(selectedDate));
-  const [todayStats, setTodayStats] = useState<TodoStats>({ total: 0, completed: 0, uncompleted: 0 });
   const [helpVisible, setHelpVisible] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
   const [appVersion, setAppVersion] = useState('');
 
   const today = dayjs();
@@ -54,24 +50,9 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
     if (isConfigured) {
       loadDaysWithTodos(currentMonth.year(), currentMonth.month() + 1);
       loadRecentFiles();
-      loadTodayStats();
+      loadStats();
     }
-  }, [currentMonth.year(), currentMonth.month(), isConfigured, syncVersion]);
-
-  // 当选中日期是今天时，定期刷新统计
-  useEffect(() => {
-    if (!isConfigured) return;
-
-    const todayStr = today.format('YYYY-MM-DD');
-    if (selectedDate !== todayStr) return;
-
-    // 选中今天时每5秒刷新一次统计
-    const timer = setInterval(() => {
-      loadTodayStats();
-    }, 5000);
-
-    return () => clearInterval(timer);
-  }, [selectedDate, isConfigured]);
+  }, [currentMonth.year(), currentMonth.month(), isConfigured, syncVersion, loadStats]);
 
   const loadDaysWithTodos = async (year: number, month: number) => {
     try {
@@ -112,29 +93,6 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
       setRecentFiles(recent);
     } catch (error) {
       // 忽略错误
-    }
-  };
-
-  const loadTodayStats = async () => {
-    try {
-      const year = today.format('YYYY');
-      const month = today.format('MM');
-      const day = today.format('MM-DD');
-      const filepath = `${year}/${month}/${day}.md`;
-      const content = await invoke<string>('read_file', { filepath });
-
-      // 解析待办统计
-      const completedMatches = content.match(/- \[x\]/gi) || [];
-      const uncompletedMatches = content.match(/- \[ \]/g) || [];
-
-      setTodayStats({
-        total: completedMatches.length + uncompletedMatches.length,
-        completed: completedMatches.length,
-        uncompleted: uncompletedMatches.length,
-      });
-    } catch (error) {
-      // 文件不存在时重置统计
-      setTodayStats({ total: 0, completed: 0, uncompleted: 0 });
     }
   };
 
@@ -264,6 +222,14 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
               </div>
             </div>
           )}
+          {/* 查看统计按钮 */}
+          <div
+            className="quick-item"
+            onClick={() => setStatsVisible(true)}
+          >
+            <span className="quick-icon">📊</span>
+            <span>查看统计</span>
+          </div>
         </div>
 
         {/* 最近编辑 */}
@@ -373,6 +339,108 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
             <li>待办文件：<code>年/月/MM-DD.md</code></li>
             <li>附件目录：<code>年/月/assets/</code></li>
           </ul>
+        </div>
+      </Modal>
+
+      {/* 统计弹框 */}
+      <Modal
+        title="任务统计"
+        open={statsVisible}
+        onCancel={() => setStatsVisible(false)}
+        footer={[
+          <Button key="refresh" onClick={recalculateStats} loading={statsLoading}>
+            重新计算
+          </Button>,
+          <Button key="close" type="primary" onClick={() => setStatsVisible(false)}>
+            关闭
+          </Button>
+        ]}
+        width={480}
+        centered
+      >
+        <div className="stats-content">
+          {stats ? (
+            <>
+              <div className="stats-section">
+                <h4>📅 今日统计</h4>
+                <div className="stats-grid">
+                  <div className="stats-card">
+                    <span className="stats-number">{todayStats.total}</span>
+                    <span className="stats-label">总任务</span>
+                  </div>
+                  <div className="stats-card completed">
+                    <span className="stats-number">{todayStats.completed}</span>
+                    <span className="stats-label">已完成</span>
+                  </div>
+                  <div className="stats-card uncompleted">
+                    <span className="stats-number">{todayStats.uncompleted}</span>
+                    <span className="stats-label">未完成</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="stats-section">
+                <h4>📈 历史汇总</h4>
+                <div className="stats-grid">
+                  <div className="stats-card">
+                    <span className="stats-number">{stats.summary.totalTasksCreated}</span>
+                    <span className="stats-label">总任务数</span>
+                  </div>
+                  <div className="stats-card completed">
+                    <span className="stats-number">{stats.summary.totalTasksCompleted}</span>
+                    <span className="stats-label">已完成</span>
+                  </div>
+                  <div className="stats-card">
+                    <span className="stats-number">{(stats.summary.completionRate * 100).toFixed(1)}%</span>
+                    <span className="stats-label">完成率</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="stats-section">
+                <h4>🔥 连续完成</h4>
+                <div className="stats-grid">
+                  <div className="stats-card streak">
+                    <span className="stats-number">{stats.summary.currentStreak}</span>
+                    <span className="stats-label">当前连续天数</span>
+                  </div>
+                  <div className="stats-card streak">
+                    <span className="stats-number">{stats.summary.longestStreak}</span>
+                    <span className="stats-label">最长连续天数</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="stats-section">
+                <h4>📊 更多数据</h4>
+                <div className="stats-list">
+                  <div className="stats-row">
+                    <span>有任务的天数</span>
+                    <span>{stats.summary.daysWithTasks} 天</span>
+                  </div>
+                  <div className="stats-row">
+                    <span>全部完成的天数</span>
+                    <span>{stats.summary.perfectDays} 天</span>
+                  </div>
+                  <div className="stats-row">
+                    <span>平均每日任务</span>
+                    <span>{stats.summary.averageTasksPerDay.toFixed(1)} 个</span>
+                  </div>
+                  <div className="stats-row hint">
+                    <span>最后更新</span>
+                    <span>{stats.lastUpdated || '-'}</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="stats-empty">
+              <p>暂无统计数据</p>
+              <Button onClick={recalculateStats} loading={statsLoading}>
+                立即计算
+              </Button>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

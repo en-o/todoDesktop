@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { invoke, convertFileSrc } from '@tauri-apps/api/tauri';
 import { message, Modal } from 'antd';
 import { useConfigStore } from '../store/configStore';
+import { useStatsStore } from '../store/statsStore';
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -416,6 +417,7 @@ export default function MarkdownEditor({
   day,
 }: MarkdownEditorProps) {
   const { config } = useConfigStore();
+  const { setTodayStats, updateDailyStats } = useStatsStore();
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [completed, setCompleted] = useState<TodoItem[]>([]);
   const [notes, setNotes] = useState('');
@@ -430,12 +432,43 @@ export default function MarkdownEditor({
   const [notesModalPreview, setNotesModalPreview] = useState(false);
 
   const dateStr = year && day ? `${year}-${day}` : '';
+  const fullDateStr = year && month && day ? `${year}-${day}` : '';
   const isEditingRef = useRef(false);
   const lastParsedRef = useRef({ dateStr: '', valueHash: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stepInputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [focusStepId, setFocusStepId] = useState<string | null>(null);
+
+  // 计算任务总数（包括子任务）
+  const countTasks = useCallback((items: TodoItem[]) => {
+    let total = 0;
+    let completedCount = 0;
+    for (const item of items) {
+      total += 1 + item.children.length;
+      if (item.checked) completedCount += 1;
+      completedCount += item.children.filter(c => c.checked).length;
+    }
+    return { total, completed: completedCount };
+  }, []);
+
+  // 实时更新今日统计
+  useEffect(() => {
+    const todoCounts = countTasks(todos);
+    const completedCounts = countTasks(completed);
+
+    const total = todoCounts.total + completedCounts.total;
+    const completedTotal = todoCounts.completed + completedCounts.completed;
+    const uncompleted = total - completedTotal;
+
+    // 更新实时统计（用于侧边栏显示）
+    setTodayStats({ total, completed: completedTotal, uncompleted });
+
+    // 更新持久化统计（保存到文件，只统计今天及之前）
+    if (fullDateStr && total > 0) {
+      updateDailyStats(fullDateStr, total, completedTotal, uncompleted);
+    }
+  }, [todos, completed, fullDateStr, countTasks, setTodayStats, updateDailyStats]);
 
   // 计算简单的内容哈希（用于判断内容是否真的变化）
   const getValueHash = (v: string) => v ? `${v.length}-${v.substring(0, 50)}` : '';

@@ -7,9 +7,13 @@ mod config;
 
 use git_manager::GitManager;
 use file_manager::FileManager;
-use config::{Config, GitInfo, DataPointer};
+use config::{Config, GitInfo, DataPointer, Statistics, DailyStats, StatsSummary};
 use std::sync::Mutex;
 use std::path::Path;
+use std::collections::HashMap;
+use std::fs;
+use regex::Regex;
+use chrono::{Local, NaiveDate};
 use tauri::{
     CustomMenuItem, Manager, State, SystemTray, SystemTrayEvent, SystemTrayMenu,
     SystemTrayMenuItem, WindowEvent,
@@ -396,6 +400,320 @@ async fn delete_attachments(
     }
 }
 
+/// 获取统计文件路径
+fn get_stats_path(local_path: &str) -> std::path::PathBuf {
+    Path::new(local_path).join(".desktop_data").join("stats.json")
+}
+
+/// 加载统计数据
+#[tauri::command]
+async fn load_stats(state: State<'_, AppState>) -> Result<Statistics, String> {
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        let stats_path = get_stats_path(&cfg.local_path);
+
+        if stats_path.exists() {
+            let content = fs::read_to_string(&stats_path)
+                .map_err(|e| e.to_string())?;
+            let stats: Statistics = serde_json::from_str(&content)
+                .map_err(|e| e.to_string())?;
+            Ok(stats)
+        } else {
+            Ok(Statistics::default())
+        }
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
+/// 保存统计数据
+#[tauri::command]
+async fn save_stats(state: State<'_, AppState>, stats: Statistics) -> Result<(), String> {
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        let stats_path = get_stats_path(&cfg.local_path);
+
+        // 确保目录存在
+        if let Some(parent) = stats_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+
+        let content = serde_json::to_string_pretty(&stats)
+            .map_err(|e| e.to_string())?;
+        fs::write(&stats_path, content).map_err(|e| e.to_string())?;
+
+        Ok(())
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
+/// 从文件内容解析任务统计
+fn parse_tasks_from_content(content: &str) -> DailyStats {
+    let completed_regex = Regex::new(r"- \[x\]").unwrap();
+    let uncompleted_regex = Regex::new(r"- \[ \]").unwrap();
+
+    let completed = completed_regex.find_iter(content).count() as u32;
+    let uncompleted = uncompleted_regex.find_iter(content).count() as u32;
+
+    DailyStats {
+        total: completed + uncompleted,
+        completed,
+        uncompleted,
+    }
+}
+
+/// 重新计算所有统计数据（扫描所有历史文件）
+#[tauri::command]
+async fn recalculate_stats(state: State<'_, AppState>) -> Result<Statistics, String> {
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        let base_path = Path::new(&cfg.local_path);
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let today_date = NaiveDate::parse_from_str(&today, "%Y-%m-%d")
+            .map_err(|e| e.to_string())?;
+
+        let mut daily: HashMap<String, DailyStats> = HashMap::new();
+
+        // 遍历年份目录
+        if let Ok(year_entries) = fs::read_dir(base_path) {
+            for year_entry in year_entries.flatten() {
+                let year_path = year_entry.path();
+                let year_name = year_entry.file_name().to_string_lossy().to_string();
+
+                // 跳过非年份目录
+                if !year_path.is_dir() || year_name.starts_with('.') || year_name.parse::<u32>().is_err() {
+                    continue;
+                }
+
+                // 遍历月份目录
+                if let Ok(month_entries) = fs::read_dir(&year_path) {
+                    for month_entry in month_entries.flatten() {
+                        let month_path = month_entry.path();
+                        let month_name = month_entry.file_name().to_string_lossy().to_string();
+
+                        // 跳过非月份目录
+                        if !month_path.is_dir() || month_name.parse::<u32>().is_err() {
+                            continue;
+                        }
+
+                        // 遍历日期文件
+                        if let Ok(file_entries) = fs::read_dir(&month_path) {
+                            for file_entry in file_entries.flatten() {
+                                let file_name = file_entry.file_name().to_string_lossy().to_string();
+
+                                // 匹配 MM-DD.md 格式
+                                if let Some(caps) = Regex::new(r"^(\d{2}-\d{2})\.md$")
+                                    .unwrap()
+                                    .captures(&file_name)
+                                {
+                                    let date_str = format!("{}-{}", year_name, &caps[1]);
+
+                                    // 只统计今天及之前的日期
+                                    if let Ok(date) = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d") {
+                                        if date > today_date {
+                                            continue;
+                                        }
+
+                                        // 读取并解析文件
+                                        if let Ok(content) = fs::read_to_string(file_entry.path()) {
+                                            let stats = parse_tasks_from_content(&content);
+                                            if stats.total > 0 {
+                                                daily.insert(date_str, stats);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 计算汇总统计
+        let summary = calculate_summary(&daily, &today);
+
+        let stats = Statistics {
+            last_updated: today,
+            daily,
+            summary,
+        };
+
+        // 保存统计
+        let stats_path = get_stats_path(&cfg.local_path);
+        if let Some(parent) = stats_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Ok(content) = serde_json::to_string_pretty(&stats) {
+            let _ = fs::write(&stats_path, content);
+        }
+
+        Ok(stats)
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
+/// 计算汇总统计
+fn calculate_summary(daily: &HashMap<String, DailyStats>, today: &str) -> StatsSummary {
+    let mut total_tasks_created: u32 = 0;
+    let mut total_tasks_completed: u32 = 0;
+    let mut days_with_tasks: u32 = 0;
+    let mut perfect_days: u32 = 0;
+
+    // 收集所有日期并排序
+    let mut dates: Vec<&String> = daily.keys().collect();
+    dates.sort();
+
+    for date in &dates {
+        if let Some(stats) = daily.get(*date) {
+            total_tasks_created += stats.total;
+            total_tasks_completed += stats.completed;
+
+            if stats.total > 0 {
+                days_with_tasks += 1;
+                if stats.uncompleted == 0 {
+                    perfect_days += 1;
+                }
+            }
+        }
+    }
+
+    // 计算连续完成天数（从今天往前数）
+    let mut current_streak: u32 = 0;
+    let mut longest_streak: u32 = 0;
+    let mut temp_streak: u32 = 0;
+
+    // 从今天开始往前检查
+    if let Ok(mut check_date) = NaiveDate::parse_from_str(today, "%Y-%m-%d") {
+        loop {
+            let date_str = check_date.format("%Y-%m-%d").to_string();
+
+            if let Some(stats) = daily.get(&date_str) {
+                if stats.total > 0 && stats.uncompleted == 0 {
+                    current_streak += 1;
+                    check_date = check_date.pred_opt().unwrap_or(check_date);
+                } else if stats.total > 0 {
+                    // 有任务但未全部完成，中断连续
+                    break;
+                } else {
+                    // 没有任务的日期跳过
+                    check_date = check_date.pred_opt().unwrap_or(check_date);
+                    // 如果连续10天没有数据，停止检查
+                    if daily.get(&check_date.format("%Y-%m-%d").to_string()).is_none() {
+                        break;
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    // 计算历史最长连续
+    for date in &dates {
+        if let Some(stats) = daily.get(*date) {
+            if stats.total > 0 && stats.uncompleted == 0 {
+                temp_streak += 1;
+                if temp_streak > longest_streak {
+                    longest_streak = temp_streak;
+                }
+            } else if stats.total > 0 {
+                temp_streak = 0;
+            }
+        }
+    }
+
+    let completion_rate = if total_tasks_created > 0 {
+        total_tasks_completed as f64 / total_tasks_created as f64
+    } else {
+        0.0
+    };
+
+    let average_tasks_per_day = if days_with_tasks > 0 {
+        total_tasks_created as f64 / days_with_tasks as f64
+    } else {
+        0.0
+    };
+
+    StatsSummary {
+        total_tasks_created,
+        total_tasks_completed,
+        completion_rate,
+        current_streak,
+        longest_streak,
+        average_tasks_per_day,
+        total_days: dates.len() as u32,
+        days_with_tasks,
+        perfect_days,
+    }
+}
+
+/// 更新指定日期的统计（当文件内容变化时调用）
+#[tauri::command]
+async fn update_daily_stats(
+    state: State<'_, AppState>,
+    date: String,
+    total: u32,
+    completed: u32,
+    uncompleted: u32,
+) -> Result<Statistics, String> {
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        let stats_path = get_stats_path(&cfg.local_path);
+        let today = Local::now().format("%Y-%m-%d").to_string();
+
+        // 只统计今天及之前的日期
+        if let Ok(input_date) = NaiveDate::parse_from_str(&date, "%Y-%m-%d") {
+            if let Ok(today_date) = NaiveDate::parse_from_str(&today, "%Y-%m-%d") {
+                if input_date > today_date {
+                    return Err("不统计未来日期".to_string());
+                }
+            }
+        }
+
+        // 加载现有统计
+        let mut stats = if stats_path.exists() {
+            let content = fs::read_to_string(&stats_path).unwrap_or_default();
+            serde_json::from_str(&content).unwrap_or_default()
+        } else {
+            Statistics::default()
+        };
+
+        // 更新每日统计
+        if total > 0 {
+            stats.daily.insert(date.clone(), DailyStats {
+                total,
+                completed,
+                uncompleted,
+            });
+        } else {
+            stats.daily.remove(&date);
+        }
+
+        // 重新计算汇总
+        stats.summary = calculate_summary(&stats.daily, &today);
+        stats.last_updated = today;
+
+        // 保存
+        if let Some(parent) = stats_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let content = serde_json::to_string_pretty(&stats)
+            .map_err(|e| e.to_string())?;
+        fs::write(&stats_path, content).map_err(|e| e.to_string())?;
+
+        Ok(stats)
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
 fn main() {
     // 检查是否带有 --quit 参数（用于更新安装时关闭应用）
     let args: Vec<String> = std::env::args().collect();
@@ -493,6 +811,10 @@ fn main() {
             get_conflict_versions,
             resolve_conflict,
             complete_merge,
+            load_stats,
+            save_stats,
+            recalculate_stats,
+            update_daily_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

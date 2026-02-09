@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,4 +42,49 @@ pub struct GitInfo {
 #[serde(rename_all = "camelCase")]
 pub struct DataPointer {
     pub data_path: String,
+}
+
+/// 每日统计数据
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyStats {
+    pub total: u32,
+    pub completed: u32,
+    pub uncompleted: u32,
+}
+
+/// 统计汇总数据
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsSummary {
+    /// 历史总任务数
+    pub total_tasks_created: u32,
+    /// 历史总完成数
+    pub total_tasks_completed: u32,
+    /// 完成率 (0-1)
+    pub completion_rate: f64,
+    /// 当前连续完成天数（每天都有任务且全部完成）
+    pub current_streak: u32,
+    /// 最长连续完成天数
+    pub longest_streak: u32,
+    /// 平均每日任务数
+    pub average_tasks_per_day: f64,
+    /// 统计的天数
+    pub total_days: u32,
+    /// 有任务的天数
+    pub days_with_tasks: u32,
+    /// 全部完成的天数
+    pub perfect_days: u32,
+}
+
+/// 统计数据
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Statistics {
+    /// 最后更新时间
+    pub last_updated: String,
+    /// 每日统计 (key: YYYY-MM-DD)
+    pub daily: HashMap<String, DailyStats>,
+    /// 汇总统计
+    pub summary: StatsSummary,
 }
