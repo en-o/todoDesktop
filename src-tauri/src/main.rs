@@ -869,20 +869,15 @@ async fn scan_past_uncompleted(state: State<'_, AppState>) -> Result<Vec<PastUnc
                                         // 读取文件并查找未完成任务
                                         if let Ok(content) = fs::read_to_string(file_entry.path()) {
                                             let mut in_todo_section = false;
-                                            let mut in_completed_section = false;
 
                                             for line in content.lines() {
                                                 // 检测 section
                                                 if line.contains("## 待办事项") {
                                                     in_todo_section = true;
-                                                    in_completed_section = false;
                                                     continue;
                                                 }
                                                 if line.contains("## 完成事项") || line.contains("## 笔记") {
                                                     in_todo_section = false;
-                                                    if line.contains("## 完成事项") {
-                                                        in_completed_section = true;
-                                                    }
                                                     continue;
                                                 }
 
@@ -1013,9 +1008,11 @@ fn main() {
 
     // 创建系统托盘菜单
     let show = CustomMenuItem::new("show".to_string(), "显示主窗口");
+    let sync = CustomMenuItem::new("sync".to_string(), "同步数据");
     let quit = CustomMenuItem::new("quit".to_string(), "退出程序");
     let tray_menu = SystemTrayMenu::new()
         .add_item(show)
+        .add_item(sync)
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(quit);
 
@@ -1062,7 +1059,24 @@ fn main() {
                         let _ = window.set_focus();
                     }
                 }
+                "sync" => {
+                    // 手动同步
+                    let state: tauri::State<AppState> = app.state();
+                    let git_manager = state.git_manager.lock().unwrap();
+                    if let Some(git_mgr) = git_manager.as_ref() {
+                        let _ = git_mgr.pull();
+                        let _ = git_mgr.push();
+                    }
+                }
                 "quit" => {
+                    // 退出前同步
+                    let state: tauri::State<AppState> = app.state();
+                    let git_manager = state.git_manager.lock().unwrap();
+                    if let Some(git_mgr) = git_manager.as_ref() {
+                        let _ = git_mgr.pull();
+                        let _ = git_mgr.push();
+                    }
+                    drop(git_manager);
                     app.exit(0);
                 }
                 _ => {}
@@ -1070,10 +1084,24 @@ fn main() {
             _ => {}
         })
         .on_window_event(|event| {
-            // 点击关闭按钮时隐藏到托盘而不是退出
-            if let WindowEvent::CloseRequested { api, .. } = event.event() {
-                event.window().hide().unwrap();
-                api.prevent_close();
+            match event.event() {
+                // 点击关闭按钮时同步并隐藏到托盘
+                WindowEvent::CloseRequested { api, .. } => {
+                    // 同步数据
+                    let app = event.window().app_handle();
+                    let state: tauri::State<AppState> = app.state();
+                    let git_manager = state.git_manager.lock().unwrap();
+                    if let Some(git_mgr) = git_manager.as_ref() {
+                        let _ = git_mgr.pull();
+                        let _ = git_mgr.push();
+                    }
+                    drop(git_manager);
+
+                    // 隐藏到托盘
+                    event.window().hide().unwrap();
+                    api.prevent_close();
+                }
+                _ => {}
             }
         })
         .manage(AppState {
