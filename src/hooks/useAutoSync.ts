@@ -13,7 +13,7 @@ interface UseAutoSyncOptions {
 }
 
 export function useAutoSync(options: UseAutoSyncOptions = {}) {
-  const { isConfigured, config } = useConfigStore();
+  const { isConfigured, config, notifySyncComplete } = useConfigStore();
   const syncIntervalRef = useRef<number | null>(null);
   const isSyncingRef = useRef(false);
   const [conflictFiles, setConflictFiles] = useState<string[]>([]);
@@ -59,6 +59,9 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
       // 没有冲突时推送
       await invoke('git_push');
 
+      // 同步成功，通知重新加载数据
+      notifySyncComplete();
+
       if (!silent) {
         message.success('同步成功');
       }
@@ -75,16 +78,19 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
       isSyncingRef.current = false;
       options.onSyncEnd?.();
     }
-  }, [isConfigured, config?.remoteUrl, options, checkConflicts]);
+  }, [isConfigured, config?.remoteUrl, options, checkConflicts, notifySyncComplete]);
 
   const handleConflictResolved = useCallback(() => {
     setShowConflictResolver(false);
     setConflictFiles([]);
     // 冲突解决后继续推送
     invoke('git_push')
-      .then(() => message.success('同步成功'))
+      .then(() => {
+        notifySyncComplete();
+        message.success('同步成功');
+      })
       .catch((error) => message.error(`推送失败: ${error}`));
-  }, []);
+  }, [notifySyncComplete]);
 
   const handleConflictCancel = useCallback(() => {
     setShowConflictResolver(false);
@@ -97,7 +103,10 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
       // 延迟 2 秒后拉取，避免影响初始加载
       const timer = setTimeout(() => {
         invoke('git_pull')
-          .then(() => checkConflicts())
+          .then(() => {
+            notifySyncComplete();
+            return checkConflicts();
+          })
           .catch(() => {
             // 静默失败
           });
@@ -105,7 +114,7 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
 
       return () => clearTimeout(timer);
     }
-  }, [isConfigured, config?.remoteUrl, checkConflicts]);
+  }, [isConfigured, config?.remoteUrl, checkConflicts, notifySyncComplete]);
 
   // 定时同步
   useEffect(() => {

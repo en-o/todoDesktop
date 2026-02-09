@@ -15,15 +15,18 @@ interface ConfigState {
   config: Config | null;
   isConfigured: boolean;
   gitReady: boolean;
+  syncVersion: number;
   loadConfig: () => Promise<void>;
   saveConfig: (config: Config) => Promise<void>;
   initGit: (config: Config) => Promise<void>;
+  notifySyncComplete: () => void;
 }
 
 export const useConfigStore = create<ConfigState>((set, get) => ({
   config: null,
   isConfigured: false,
   gitReady: false,
+  syncVersion: 0,
 
   loadConfig: async () => {
     try {
@@ -68,5 +71,9 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       set({ gitReady: true }); // 即使失败也设置为 ready
       throw error;
     }
+  },
+
+  notifySyncComplete: () => {
+    set((state) => ({ syncVersion: state.syncVersion + 1 }));
   },
 }));

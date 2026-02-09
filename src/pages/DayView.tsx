@@ -11,7 +11,7 @@ const { Title, Text } = Typography;
 
 export default function DayView() {
   const { date } = useParams<{ date: string }>();
-  const { isConfigured, gitReady, config } = useConfigStore();
+  const { isConfigured, gitReady, syncVersion, config } = useConfigStore();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -87,7 +87,7 @@ export default function DayView() {
     } else {
       setContent(getDefaultContent());
     }
-  }, [date, isConfigured, gitReady]);
+  }, [date, isConfigured, gitReady, syncVersion]);
 
   // 快捷键 Ctrl+S 保存
   useEffect(() => {

@@ -27,7 +27,7 @@ interface TodoStats {
 
 export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }: SidebarProps) {
   const navigate = useNavigate();
-  const { isConfigured, gitReady, config } = useConfigStore();
+  const { isConfigured, gitReady, syncVersion, config } = useConfigStore();
   const [daysWithTodos, setDaysWithTodos] = useState<Set<string>>(new Set());
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(dayjs(selectedDate));
@@ -56,7 +56,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
       loadRecentFiles();
       loadTodayStats();
     }
-  }, [currentMonth.year(), currentMonth.month(), isConfigured, gitReady]);
+  }, [currentMonth.year(), currentMonth.month(), isConfigured, gitReady, syncVersion]);
 
   // 当选中日期是今天时，定期刷新统计
   useEffect(() => {
