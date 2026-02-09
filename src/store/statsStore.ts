@@ -43,7 +43,7 @@ interface StatsState {
   setTodayStats: (stats: DailyStats) => void;
 }
 
-export const useStatsStore = create<StatsState>((set, get) => ({
+export const useStatsStore = create<StatsState>((set, _get) => ({
   stats: null,
   todayStats: { total: 0, completed: 0, uncompleted: 0 },
   loading: false,
