@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Typography, message, Spin } from 'antd';
 import { invoke } from '@tauri-apps/api/tauri';
@@ -81,14 +81,19 @@ export default function DayView() {
     setIsDirty(true);
   }, []);
 
+  // 记录上次加载的日期，避免重复加载
+  const lastLoadedDateRef = useRef('');
+
   useEffect(() => {
     let cancelled = false;
 
     const doLoad = async () => {
-      console.log('[DayView] doLoad called', { isConfigured, date, gitReady, syncVersion });
+      // 如果正在编辑或有未保存的更改，不重新加载（除非日期变了）
+      if (isDirty && lastLoadedDateRef.current === date) {
+        return;
+      }
 
       if (!isConfigured || !date) {
-        console.log('[DayView] Not configured or no date, setting default content');
         setContent(getDefaultContent());
         return;
       }
@@ -96,17 +101,16 @@ export default function DayView() {
       setLoading(true);
       try {
         const filepath = getFilePath();
-        console.log('[DayView] Loading file:', filepath);
         const data = await invoke<string>('read_file', { filepath });
-        console.log('[DayView] File loaded, length:', data?.length, 'preview:', data?.substring(0, 100));
         if (!cancelled) {
           setContent(data || getDefaultContent());
           setIsDirty(false);
+          lastLoadedDateRef.current = date;
         }
       } catch (error) {
-        console.log('[DayView] Load error:', error);
         if (!cancelled) {
           setContent(getDefaultContent());
+          lastLoadedDateRef.current = date;
         }
       } finally {
         if (!cancelled) {
@@ -120,7 +124,7 @@ export default function DayView() {
     return () => {
       cancelled = true;
     };
-  }, [date, isConfigured, gitReady, syncVersion, getFilePath]);
+  }, [date, isConfigured, gitReady, syncVersion, getFilePath, isDirty]);
 
   // 快捷键 Ctrl+S 保存
   useEffect(() => {

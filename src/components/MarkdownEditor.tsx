@@ -66,11 +66,9 @@ function generateId(): string {
 
 // 解析 Markdown 内容
 function parseContent(content: string): ParsedContent {
-  console.log('[parseContent] Starting parse, content length:', content.length);
   // 统一处理换行符，移除 \r
   const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const lines = normalizedContent.split('\n');
-  console.log('[parseContent] Total lines:', lines.length);
   const todos: TodoItem[] = [];
   const completed: TodoItem[] = [];
   let notes = '';
@@ -90,13 +88,11 @@ function parseContent(content: string): ParsedContent {
 
     if (!inCodeBlock) {
       if (line.match(/^##\s*待办事项\s*$/)) {
-        console.log('[parseContent] Found 待办事项 section at line', i);
         saveCurrentItems();
         currentSection = 'todos';
         continue;
       }
       if (line.match(/^##\s*完成事项\s*$/)) {
-        console.log('[parseContent] Found 完成事项 section at line', i);
         saveCurrentItems();
         currentSection = 'completed';
         continue;
@@ -124,7 +120,6 @@ function parseContent(content: string): ParsedContent {
       const childMatch = !inCodeBlock && line.match(/^(\s{2,4})-\s*\[([\sx])\]\s*(.*)$/i);
 
       if (parentMatch) {
-        console.log('[parseContent] Found parent todo at line', i, ':', line.substring(0, 50));
         saveCurrentItems();
         currentParent = {
           id: generateId(),
@@ -186,7 +181,6 @@ function parseContent(content: string): ParsedContent {
   }
 
   saveCurrentItems();
-  console.log('[parseContent] Final result:', { todosCount: todos.length, completedCount: completed.length, todos });
   return { todos, completed, notes: notes.trimEnd() };
 }
 
@@ -383,47 +377,46 @@ export default function MarkdownEditor({
 
   const dateStr = year && day ? `${year}-${day}` : '';
   const isEditingRef = useRef(false);
+  const lastParsedRef = useRef({ dateStr: '', valueHash: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 解析内容 - 当 dateStr 或 value 变化时重新解析
-  useEffect(() => {
-    console.log('[MarkdownEditor] useEffect triggered', {
-      dateStr,
-      valueLength: value?.length,
-      valuePreview: value?.substring(0, 100),
-      isEditing: isEditingRef.current
-    });
+  // 计算简单的内容哈希（用于判断内容是否真的变化）
+  const getValueHash = (v: string) => v ? `${v.length}-${v.substring(0, 50)}` : '';
 
-    // 如果正在编辑中，不重新解析（避免光标跳动）
-    if (isEditingRef.current) {
-      console.log('[MarkdownEditor] Skipping parse - editing in progress');
+  // 只在日期变化或内容首次加载时解析
+  useEffect(() => {
+    if (!dateStr) return;
+
+    const currentHash = getValueHash(value);
+    const lastHash = lastParsedRef.current.valueHash;
+    const lastDate = lastParsedRef.current.dateStr;
+
+    // 日期变化时总是重新解析
+    const dateChanged = dateStr !== lastDate;
+    // 内容从空变为非空时（首次加载）需要解析
+    const contentLoaded = lastHash === '' && currentHash !== '';
+
+    if (!dateChanged && !contentLoaded) {
       return;
     }
 
+    lastParsedRef.current = { dateStr, valueHash: currentHash };
+
     if (value && value.trim()) {
-      console.log('[MarkdownEditor] Parsing content...');
       const parsed = parseContent(value);
-      console.log('[MarkdownEditor] Parsed result:', {
-        todosCount: parsed.todos.length,
-        completedCount: parsed.completed.length,
-        notesLength: parsed.notes.length,
-        todos: parsed.todos
-      });
       setTodos(parsed.todos);
       setCompleted(parsed.completed);
       setNotes(parsed.notes);
     } else {
-      console.log('[MarkdownEditor] Empty value, setting empty arrays');
       setTodos([]);
       setCompleted([]);
       setNotes('');
     }
-  }, [dateStr, value]);
 
-  // 日期变化时重置选中状态
-  useEffect(() => {
-    setSelectedId(null);
-  }, [dateStr]);
+    if (dateChanged) {
+      setSelectedId(null);
+    }
+  }, [dateStr, value]);
 
   // 自定义 Markdown 组件，处理本地图片路径
   const markdownComponents = useMemo(() => ({
