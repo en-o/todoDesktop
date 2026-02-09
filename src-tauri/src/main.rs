@@ -706,7 +706,15 @@ async fn update_daily_stats(
         }
         let content = serde_json::to_string_pretty(&stats)
             .map_err(|e| e.to_string())?;
-        fs::write(&stats_path, content).map_err(|e| e.to_string())?;
+        fs::write(&stats_path, &content).map_err(|e| e.to_string())?;
+
+        // 提交到 git（静默处理，不影响主流程）
+        drop(config);
+        let git_manager = state.git_manager.lock().unwrap();
+        if let Some(git_mgr) = git_manager.as_ref() {
+            let git_path = ".desktop_data/stats.json";
+            let _ = git_mgr.add_and_commit(git_path, "更新统计数据");
+        }
 
         Ok(stats)
     } else {

@@ -88,6 +88,9 @@ export default function DayView() {
       await invoke('write_file', { filepath, content: contentRef.current });
       setIsDirty(false);
 
+      // 触发统计更新
+      window.dispatchEvent(new CustomEvent('save-stats'));
+
       // 同步到远程
       await syncToRemote();
 

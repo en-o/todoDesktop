@@ -452,7 +452,7 @@ export default function MarkdownEditor({
     return { total, completed: completedCount };
   }, []);
 
-  // 实时更新今日统计
+  // 实时更新今日统计（仅更新内存中的显示数据，不写入文件）
   useEffect(() => {
     const todoCounts = countTasks(todos);
     const completedCounts = countTasks(completed);
@@ -461,14 +461,33 @@ export default function MarkdownEditor({
     const completedTotal = todoCounts.completed + completedCounts.completed;
     const uncompleted = total - completedTotal;
 
-    // 更新实时统计（用于侧边栏显示）
+    // 只更新内存中的实时统计（用于侧边栏显示）
     setTodayStats({ total, completed: completedTotal, uncompleted });
+  }, [todos, completed, countTasks, setTodayStats]);
 
-    // 更新持久化统计（保存到文件，只统计今天及之前）
-    if (fullDateStr && total > 0) {
+  // 保存时更新持久化统计（由 onSave 调用时触发）
+  const savePersistentStats = useCallback(() => {
+    const todoCounts = countTasks(todos);
+    const completedCounts = countTasks(completed);
+
+    const total = todoCounts.total + completedCounts.total;
+    const completedTotal = todoCounts.completed + completedCounts.completed;
+    const uncompleted = total - completedTotal;
+
+    if (fullDateStr) {
       updateDailyStats(fullDateStr, total, completedTotal, uncompleted);
     }
-  }, [todos, completed, fullDateStr, countTasks, setTodayStats, updateDailyStats]);
+  }, [todos, completed, fullDateStr, countTasks, updateDailyStats]);
+
+  // 监听保存事件，保存时同步统计
+  useEffect(() => {
+    const handleSaveStats = () => {
+      savePersistentStats();
+    };
+
+    window.addEventListener('save-stats', handleSaveStats);
+    return () => window.removeEventListener('save-stats', handleSaveStats);
+  }, [savePersistentStats]);
 
   // 计算简单的内容哈希（用于判断内容是否真的变化）
   const getValueHash = (v: string) => v ? `${v.length}-${v.substring(0, 50)}` : '';
