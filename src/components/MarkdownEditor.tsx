@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { invoke, convertFileSrc } from '@tauri-apps/api/tauri';
-import { message } from 'antd';
+import { message, Modal } from 'antd';
 import { useConfigStore } from '../store/configStore';
 import {
   PlusOutlined,
@@ -12,6 +12,7 @@ import {
   EyeOutlined,
   EditOutlined,
   HolderOutlined,
+  ExpandOutlined,
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -424,6 +425,9 @@ export default function MarkdownEditor({
   const [isDragging, setIsDragging] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [detailPreviewMode, setDetailPreviewMode] = useState(true);
+  const [notesModalOpen, setNotesModalOpen] = useState(false);
+  const [notesModalContent, setNotesModalContent] = useState('');
+  const [notesModalPreview, setNotesModalPreview] = useState(false);
 
   const dateStr = year && day ? `${year}-${day}` : '';
   const isEditingRef = useRef(false);
@@ -1139,6 +1143,18 @@ export default function MarkdownEditor({
                   {detailPreviewMode ? <EditOutlined /> : <EyeOutlined />}
                 </button>
                 <button
+                  className="preview-toggle"
+                  onClick={() => {
+                    setNotesModalContent(selectedTodo.subContent);
+                    setNotesModalPreview(false);
+                    setNotesModalOpen(true);
+                  }}
+                  title="放大编辑"
+                  disabled={disabled}
+                >
+                  <ExpandOutlined />
+                </button>
+                <button
                   className="upload-btn"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={disabled}
@@ -1377,6 +1393,56 @@ export default function MarkdownEditor({
 
       {/* 右侧详情面板 */}
       {selectedId && activeTab !== 'notes' && renderDetailPanel()}
+
+      {/* 备注编辑弹窗 */}
+      <Modal
+        title={
+          <div className="notes-modal-header">
+            <span>编辑备注 & 附件</span>
+            <button
+              className={`preview-toggle ${notesModalPreview ? 'active' : ''}`}
+              onClick={() => setNotesModalPreview(!notesModalPreview)}
+            >
+              {notesModalPreview ? <><EditOutlined /> 编辑</> : <><EyeOutlined /> 预览</>}
+            </button>
+          </div>
+        }
+        open={notesModalOpen}
+        onCancel={() => setNotesModalOpen(false)}
+        onOk={() => {
+          if (selectedTodo) {
+            updateTodoSubContent(selectedTodo.id, notesModalContent, isSelectedCompleted, selectedParentId);
+          }
+          setNotesModalOpen(false);
+        }}
+        okText="保存"
+        cancelText="取消"
+        width={800}
+        styles={{ body: { height: '60vh', padding: '16px' } }}
+        destroyOnClose
+      >
+        <div className="notes-modal-content">
+          {notesModalPreview ? (
+            <div className="notes-modal-preview markdown-preview">
+              {notesModalContent ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {notesModalContent}
+                </ReactMarkdown>
+              ) : (
+                <div className="preview-empty">暂无内容</div>
+              )}
+            </div>
+          ) : (
+            <textarea
+              className="notes-modal-textarea"
+              value={notesModalContent}
+              onChange={(e) => setNotesModalContent(e.target.value)}
+              placeholder="添加备注...（支持 Markdown 格式）"
+              autoFocus
+            />
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
