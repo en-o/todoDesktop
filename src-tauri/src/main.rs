@@ -361,6 +361,41 @@ async fn upload_attachment(
     }
 }
 
+#[tauri::command]
+async fn delete_attachments(
+    state: State<'_, AppState>,
+    year: String,
+    month: String,
+    paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let file_manager = state.file_manager.lock().unwrap();
+    let config = state.config.lock().unwrap();
+
+    if let Some(cfg) = config.as_ref() {
+        let deleted = file_manager
+            .delete_attachments(&cfg.local_path, &year, &month, &paths)
+            .map_err(|e| e.to_string())?;
+
+        // 如果有文件被删除，提交到 git
+        if !deleted.is_empty() {
+            drop(file_manager);
+            drop(config);
+
+            let git_manager = state.git_manager.lock().unwrap();
+            if let Some(git_mgr) = git_manager.as_ref() {
+                for path in &deleted {
+                    // git rm 删除的文件
+                    let _ = git_mgr.add_and_commit(path, &format!("删除附件 {}", path));
+                }
+            }
+        }
+
+        Ok(deleted)
+    } else {
+        Err("未配置本地目录".to_string())
+    }
+}
+
 fn main() {
     // 检查是否带有 --quit 参数（用于更新安装时关闭应用）
     let args: Vec<String> = std::env::args().collect();
@@ -452,6 +487,7 @@ fn main() {
             detect_git_config,
             is_git_repo,
             upload_attachment,
+            delete_attachments,
             has_conflicts,
             get_conflict_files,
             get_conflict_versions,

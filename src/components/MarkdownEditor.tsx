@@ -851,8 +851,72 @@ export default function MarkdownEditor({
     }
   }, [todos, completed, notes, syncToParent]);
 
+  // 从内容中提取附件路径
+  const extractAttachmentPaths = useCallback((content: string): string[] => {
+    const paths: string[] = [];
+    // 匹配 ![...](assets/...) 和 [...](assets/...)
+    const regex = /\[.*?\]\((assets\/[^)]+)\)/g;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      paths.push(match[1]);
+    }
+    return paths;
+  }, []);
+
+  // 删除附件文件
+  const deleteAttachmentFiles = useCallback(async (paths: string[]) => {
+    if (paths.length === 0 || !year || !month) return;
+
+    try {
+      await invoke('delete_attachments', {
+        year,
+        month,
+        paths,
+      });
+    } catch (error) {
+      console.error('删除附件失败:', error);
+    }
+  }, [year, month]);
+
   // 删除任务
-  const deleteTodo = useCallback((id: string, isCompleted: boolean, parentId?: string) => {
+  const deleteTodo = useCallback(async (id: string, isCompleted: boolean, parentId?: string) => {
+    // 找到要删除的任务，提取其附件
+    let taskToDelete: TodoItem | undefined;
+
+    if (isCompleted) {
+      if (parentId) {
+        const parent = completed.find(t => t.id === parentId);
+        taskToDelete = parent?.children.find(c => c.id === id);
+      } else {
+        taskToDelete = completed.find(t => t.id === id);
+      }
+    } else {
+      if (parentId) {
+        const parent = todos.find(t => t.id === parentId);
+        taskToDelete = parent?.children.find(c => c.id === id);
+      } else {
+        taskToDelete = todos.find(t => t.id === id);
+      }
+    }
+
+    // 收集要删除的附件（包括子任务的附件）
+    const attachmentPaths: string[] = [];
+    if (taskToDelete) {
+      attachmentPaths.push(...extractAttachmentPaths(taskToDelete.subContent));
+      // 如果是父任务，也收集子任务的附件
+      if (!parentId && taskToDelete.children) {
+        for (const child of taskToDelete.children) {
+          attachmentPaths.push(...extractAttachmentPaths(child.subContent));
+        }
+      }
+    }
+
+    // 删除附件文件
+    if (attachmentPaths.length > 0) {
+      await deleteAttachmentFiles(attachmentPaths);
+    }
+
+    // 删除任务
     if (isCompleted) {
       if (parentId) {
         const newCompleted = completed.map(parent => {
@@ -885,7 +949,7 @@ export default function MarkdownEditor({
       }
     }
     if (selectedId === id) setSelectedId(null);
-  }, [todos, completed, notes, selectedId, syncToParent]);
+  }, [todos, completed, notes, selectedId, syncToParent, extractAttachmentPaths, deleteAttachmentFiles]);
 
   // 更新笔记
   const updateNotes = useCallback((newNotes: string) => {

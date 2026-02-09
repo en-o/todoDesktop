@@ -87,4 +87,34 @@ impl FileManager {
         // 返回相对路径: assets/filename
         Ok(format!("assets/{}", filename))
     }
+
+    /// 删除附件
+    /// paths: 相对路径数组，如 ["assets/filename1.png", "assets/filename2.pdf"]
+    pub fn delete_attachments(
+        &self,
+        base_path: &str,
+        year: &str,
+        month: &str,
+        paths: &[String],
+    ) -> Result<Vec<String>> {
+        let mut deleted = Vec::new();
+
+        for path in paths {
+            // 构建完整路径: base_path/year/month/assets/filename
+            let full_path = Path::new(base_path)
+                .join(year)
+                .join(month)
+                .join(path);
+
+            if full_path.exists() {
+                if let Err(e) = fs::remove_file(&full_path) {
+                    eprintln!("删除文件失败 {:?}: {}", full_path, e);
+                } else {
+                    deleted.push(format!("{}/{}/{}", year, month, path));
+                }
+            }
+        }
+
+        Ok(deleted)
+    }
 }
