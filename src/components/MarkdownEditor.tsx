@@ -1422,6 +1422,10 @@ export default function MarkdownEditor({
         destroyOnClose
       >
         <div className="notes-modal-content">
+          <div className="notes-modal-hint">
+            <span className="hint-icon">⚠️</span>
+            支持 Markdown 格式，但不允许使用标题（#）语法
+          </div>
           {notesModalPreview ? (
             <div className="notes-modal-preview markdown-preview">
               {notesModalContent ? (

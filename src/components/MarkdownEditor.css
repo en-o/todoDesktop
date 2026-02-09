@@ -1007,6 +1007,24 @@
   flex-direction: column;
 }
 
+.notes-modal-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 4px;
+  color: #d46b08;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.notes-modal-hint .hint-icon {
+  font-size: 16px;
+}
+
 .notes-modal-textarea {
   flex: 1;
   width: 100%;
