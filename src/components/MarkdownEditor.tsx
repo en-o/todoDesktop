@@ -409,39 +409,38 @@ export default function MarkdownEditor({
   // 计算简单的内容哈希（用于判断内容是否真的变化）
   const getValueHash = (v: string) => v ? `${v.length}-${v.substring(0, 50)}` : '';
 
-  // 只在日期变化或内容首次加载时解析
+  // 日期变化时立即清空状态，避免显示旧数据
+  useEffect(() => {
+    const lastDate = lastParsedRef.current.dateStr;
+    if (dateStr && dateStr !== lastDate) {
+      // 日期变化，清空状态等待新内容
+      setTodos([]);
+      setCompleted([]);
+      setNotes('');
+      setSelectedId(null);
+      lastParsedRef.current = { dateStr, valueHash: '' };
+    }
+  }, [dateStr]);
+
+  // 内容变化时解析
   useEffect(() => {
     if (!dateStr) return;
+    if (!value || !value.trim()) return;
 
     const currentHash = getValueHash(value);
     const lastHash = lastParsedRef.current.valueHash;
-    const lastDate = lastParsedRef.current.dateStr;
 
-    // 日期变化时总是重新解析
-    const dateChanged = dateStr !== lastDate;
-    // 内容从空变为非空时（首次加载）需要解析
-    const contentLoaded = lastHash === '' && currentHash !== '';
-
-    if (!dateChanged && !contentLoaded) {
+    // 内容没变化，不重新解析
+    if (currentHash === lastHash) {
       return;
     }
 
     lastParsedRef.current = { dateStr, valueHash: currentHash };
 
-    if (value && value.trim()) {
-      const parsed = parseContent(value);
-      setTodos(parsed.todos);
-      setCompleted(parsed.completed);
-      setNotes(parsed.notes);
-    } else {
-      setTodos([]);
-      setCompleted([]);
-      setNotes('');
-    }
-
-    if (dateChanged) {
-      setSelectedId(null);
-    }
+    const parsed = parseContent(value);
+    setTodos(parsed.todos);
+    setCompleted(parsed.completed);
+    setNotes(parsed.notes);
   }, [dateStr, value]);
 
   // 聚焦到新创建的步骤
