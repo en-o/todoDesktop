@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "Todo Desktop",
-    "version": "0.0.8"
+    "version": "0.0.9"
   },
   "tauri": {
     "allowlist": {
@@ -81,7 +81,10 @@
         "nsis": {
           "installMode": "currentUser",
           "displayLanguageSelector": false,
-          "languages": ["SimpChinese", "English"]
+          "languages": [
+            "SimpChinese",
+            "English"
+          ]
         },
         "wix": null
       }
