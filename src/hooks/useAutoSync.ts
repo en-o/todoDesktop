@@ -3,8 +3,6 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { message } from 'antd';
 import { useConfigStore } from '../store/configStore';
 
-const SYNC_INTERVAL = 5 * 60 * 1000; // 5 分钟
-
 interface UseAutoSyncOptions {
   onSyncStart?: () => void;
   onSyncEnd?: () => void;
@@ -14,7 +12,6 @@ interface UseAutoSyncOptions {
 
 export function useAutoSync(options: UseAutoSyncOptions = {}) {
   const { isConfigured, config, notifySyncComplete } = useConfigStore();
-  const syncIntervalRef = useRef<number | null>(null);
   const isSyncingRef = useRef(false);
   const [conflictFiles, setConflictFiles] = useState<string[]>([]);
   const [showConflictResolver, setShowConflictResolver] = useState(false);
@@ -37,6 +34,7 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
     return false;
   }, [options]);
 
+  // 手动同步（点击同步按钮时调用）
   const sync = useCallback(async (silent = false) => {
     if (!isConfigured || !config?.remoteUrl || isSyncingRef.current) {
       return;
@@ -46,20 +44,34 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
     options.onSyncStart?.();
 
     try {
-      // 先拉取
+      // 1. 先触发保存事件，让 DayView 保存当前内容
+      const savePromise = new Promise<void>((resolve) => {
+        const handleSaved = () => {
+          window.removeEventListener('dayview-saved', handleSaved);
+          resolve();
+        };
+        window.addEventListener('dayview-saved', handleSaved);
+        window.dispatchEvent(new CustomEvent('trigger-save'));
+
+        // 超时后继续（防止卡住）
+        setTimeout(resolve, 1000);
+      });
+
+      await savePromise;
+
+      // 2. 拉取远程更新
       await invoke('git_pull');
 
-      // 检查是否有冲突
+      // 3. 检查是否有冲突
       const hasConflict = await checkConflicts();
       if (hasConflict) {
-        // 有冲突时不继续推送，等待用户解决
         return;
       }
 
-      // 没有冲突时推送
+      // 4. 推送本地更改
       await invoke('git_push');
 
-      // 同步成功，通知重新加载数据
+      // 5. 同步成功，通知重新加载数据
       notifySyncComplete();
 
       if (!silent) {
@@ -67,7 +79,6 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
       }
     } catch (error) {
       const errorMsg = String(error);
-      // 检查是否因为冲突导致的错误
       if (errorMsg.includes('conflict') || errorMsg.includes('冲突')) {
         await checkConflicts();
       } else if (!silent) {
@@ -83,7 +94,6 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
   const handleConflictResolved = useCallback(() => {
     setShowConflictResolver(false);
     setConflictFiles([]);
-    // 冲突解决后继续推送
     invoke('git_push')
       .then(() => {
         notifySyncComplete();
@@ -97,42 +107,21 @@ export function useAutoSync(options: UseAutoSyncOptions = {}) {
     message.warning('合并已取消，冲突仍未解决');
   }, []);
 
-  // 启动时自动拉取
+  // 启动时自动拉取（只拉取不推送）
   useEffect(() => {
     if (isConfigured && config?.remoteUrl) {
-      // 延迟 2 秒后拉取，避免影响初始加载
       const timer = setTimeout(() => {
         invoke('git_pull')
           .then(() => {
             notifySyncComplete();
             return checkConflicts();
           })
-          .catch(() => {
-            // 静默失败
-          });
+          .catch(() => {});
       }, 2000);
 
       return () => clearTimeout(timer);
     }
   }, [isConfigured, config?.remoteUrl, checkConflicts, notifySyncComplete]);
-
-  // 定时同步
-  useEffect(() => {
-    if (!isConfigured || !config?.remoteUrl) {
-      return;
-    }
-
-    syncIntervalRef.current = window.setInterval(() => {
-      sync(true); // 静默同步
-    }, SYNC_INTERVAL);
-
-    return () => {
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-        syncIntervalRef.current = null;
-      }
-    };
-  }, [isConfigured, config?.remoteUrl, sync]);
 
   return {
     sync,

@@ -9,9 +9,12 @@ import './DayView.css';
 
 const { Title, Text } = Typography;
 
+// 无操作自动保存时间（3分钟）
+const IDLE_SAVE_TIMEOUT = 3 * 60 * 1000;
+
 export default function DayView() {
   const { date } = useParams<{ date: string }>();
-  const { isConfigured, syncVersion, config } = useConfigStore();
+  const { isConfigured, syncVersion, config, notifySyncComplete } = useConfigStore();
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -19,25 +22,41 @@ export default function DayView() {
   const parsedDate = dayjs(date);
   const year = parsedDate.format('YYYY');
   const month = parsedDate.format('MM');
-  const day = parsedDate.format('MM-DD'); // 新格式: mm-dd
+  const day = parsedDate.format('MM-DD');
 
-  // 文件路径: 年/月/mm-dd.md
+  // refs
+  const lastLoadedRef = useRef({ date: '', syncVersion: 0 });
+  const isDirtyRef = useRef(false);
+  const lastActivityRef = useRef(Date.now());
+  const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const contentRef = useRef(content);
+
+  // 同步 refs
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  // 文件路径
   const getFilePath = useCallback(() => {
     return `${year}/${month}/${day}.md`;
   }, [year, month, day]);
 
-  // 同步到远程
+  // 同步到远程（git push）
   const syncToRemote = useCallback(async () => {
     if (!config?.remoteUrl) return;
 
     try {
       await invoke('git_push');
     } catch (error) {
-      // 静默失败，不影响用户体验
       console.error('同步失败:', error);
     }
   }, [config?.remoteUrl]);
 
+  // 保存并同步（主动保存时使用）
   const handleSave = useCallback(async (silent = false) => {
     if (!isConfigured) {
       if (!silent) {
@@ -46,8 +65,7 @@ export default function DayView() {
       return;
     }
 
-    // 如果没有改动，不需要保存和同步
-    if (!isDirty) {
+    if (!isDirtyRef.current) {
       if (!silent) {
         message.info('没有需要保存的改动');
       }
@@ -57,11 +75,14 @@ export default function DayView() {
     setSaving(true);
     try {
       const filepath = getFilePath();
-      await invoke('write_file', { filepath, content });
+      await invoke('write_file', { filepath, content: contentRef.current });
       setIsDirty(false);
 
-      // 有改动才同步到远程
+      // 同步到远程
       await syncToRemote();
+
+      // 通知同步完成，触发重新渲染
+      notifySyncComplete();
 
       if (!silent) {
         message.success('保存成功');
@@ -73,22 +94,21 @@ export default function DayView() {
     } finally {
       setSaving(false);
     }
-  }, [content, isConfigured, isDirty, getFilePath, syncToRemote]);
+  }, [isConfigured, getFilePath, syncToRemote, notifySyncComplete]);
 
+  // 记录用户活动
+  const recordActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+  }, []);
+
+  // 内容变化处理
   const handleContentChange = useCallback((value: string) => {
     setContent(value);
     setIsDirty(true);
-  }, []);
+    recordActivity();
+  }, [recordActivity]);
 
-  // 记录上次加载的日期和同步版本，避免重复加载
-  const lastLoadedRef = useRef({ date: '', syncVersion: 0 });
-  const isDirtyRef = useRef(false);
-
-  // 同步 isDirty 到 ref
-  useEffect(() => {
-    isDirtyRef.current = isDirty;
-  }, [isDirty]);
-
+  // 加载数据
   useEffect(() => {
     let cancelled = false;
 
@@ -101,13 +121,11 @@ export default function DayView() {
       const dateChanged = lastLoadedRef.current.date !== date;
       const syncChanged = syncVersion > 0 && lastLoadedRef.current.syncVersion !== syncVersion;
 
-      // 只有日期变化或手动同步完成时才重新加载
       if (!dateChanged && !syncChanged) {
         return;
       }
 
       if (isDirtyRef.current && !dateChanged) {
-        // 有未保存的更改，只更新 syncVersion 记录，不重新加载
         lastLoadedRef.current.syncVersion = syncVersion;
         return;
       }
@@ -148,16 +166,63 @@ export default function DayView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  // 自动保存: 输入停止 2 秒后自动保存（静默模式）
+  // 监听外部触发的保存事件（同步按钮点击时）
   useEffect(() => {
-    if (!isDirty || !isConfigured) return;
+    const handleTriggerSave = async () => {
+      if (isDirtyRef.current && isConfigured) {
+        try {
+          const filepath = getFilePath();
+          await invoke('write_file', { filepath, content: contentRef.current });
+          setIsDirty(false);
+        } catch (error) {
+          console.error('保存失败:', error);
+        }
+      }
+      // 通知保存完成
+      window.dispatchEvent(new CustomEvent('dayview-saved'));
+    };
 
-    const timer = setTimeout(() => {
-      handleSave(true);
-    }, 2000);
+    window.addEventListener('trigger-save', handleTriggerSave);
+    return () => window.removeEventListener('trigger-save', handleTriggerSave);
+  }, [isConfigured, getFilePath]);
 
-    return () => clearTimeout(timer);
-  }, [content, isDirty, isConfigured, handleSave]);
+  // 3分钟无操作自动保存
+  useEffect(() => {
+    if (!isConfigured) return;
+
+    const checkIdle = () => {
+      const now = Date.now();
+      const timeSinceLastActivity = now - lastActivityRef.current;
+
+      if (timeSinceLastActivity >= IDLE_SAVE_TIMEOUT && isDirtyRef.current) {
+        // 3分钟无操作且有未保存的更改，自动保存
+        handleSave(true);
+      }
+    };
+
+    // 每30秒检查一次
+    idleTimerRef.current = setInterval(checkIdle, 30000);
+
+    return () => {
+      if (idleTimerRef.current) {
+        clearInterval(idleTimerRef.current);
+      }
+    };
+  }, [isConfigured, handleSave]);
+
+  // 页面卸载前保存
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isDirtyRef.current && isConfigured) {
+        // 尝试同步保存（可能不会完成，但尝试一下）
+        const filepath = getFilePath();
+        invoke('write_file', { filepath, content: contentRef.current }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isConfigured, getFilePath]);
 
   const getDefaultContent = () => {
     return `# ${parsedDate.format('YYYY-MM-DD')}
@@ -198,7 +263,7 @@ export default function DayView() {
         <MarkdownEditor
           value={content}
           onChange={handleContentChange}
-          onSave={handleSave}
+          onSave={() => handleSave(false)}
           disabled={!isConfigured}
           placeholder="开始编写今天的待办事项..."
           year={year}

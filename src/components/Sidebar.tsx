@@ -27,7 +27,7 @@ interface TodoStats {
 
 export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }: SidebarProps) {
   const navigate = useNavigate();
-  const { isConfigured, gitReady, syncVersion, config } = useConfigStore();
+  const { isConfigured, syncVersion, config } = useConfigStore();
   const [daysWithTodos, setDaysWithTodos] = useState<Set<string>>(new Set());
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(dayjs(selectedDate));
@@ -56,7 +56,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
       loadRecentFiles();
       loadTodayStats();
     }
-  }, [currentMonth.year(), currentMonth.month(), isConfigured, gitReady, syncVersion]);
+  }, [currentMonth.year(), currentMonth.month(), isConfigured, syncVersion]);
 
   // 当选中日期是今天时，定期刷新统计
   useEffect(() => {
@@ -358,12 +358,14 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
           <h3>快捷键</h3>
           <ul>
             <li><code>Ctrl + S</code> 保存并同步</li>
+            <li><code>Enter</code> 在步骤输入框中按回车创建下一个步骤</li>
           </ul>
 
           <h3>同步</h3>
           <ul>
-            <li><strong>自动保存</strong>：停止输入 2 秒后自动保存</li>
-            <li><strong>手动同步</strong>：点击「同步」推送到远程仓库</li>
+            <li><strong>手动保存</strong>：按 <code>Ctrl + S</code> 保存并推送到远程</li>
+            <li><strong>手动同步</strong>：点击「同步」拉取远程更新并推送本地更改</li>
+            <li><strong>自动保存</strong>：3 分钟无操作时自动保存并推送</li>
           </ul>
 
           <h3>数据存储</h3>

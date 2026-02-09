@@ -422,10 +422,15 @@ export default function MarkdownEditor({
     }
   }, [dateStr]);
 
-  // 内容变化时解析
+  // 内容变化时解析（但编辑时不重新解析）
   useEffect(() => {
     if (!dateStr) return;
     if (!value || !value.trim()) return;
+
+    // 用户正在编辑时，不重新解析
+    if (isEditingRef.current) {
+      return;
+    }
 
     const currentHash = getValueHash(value);
     const lastHash = lastParsedRef.current.valueHash;
@@ -510,10 +515,12 @@ export default function MarkdownEditor({
     if (!dateStr) return;
     isEditingRef.current = true;
     const markdown = buildMarkdown(dateStr, newTodos, newCompleted, newNotes);
+    // 更新哈希值，防止 useEffect 重新解析
+    lastParsedRef.current = { dateStr, valueHash: getValueHash(markdown) };
     onChange(markdown);
     setTimeout(() => {
       isEditingRef.current = false;
-    }, 300);
+    }, 500);
   }, [dateStr, onChange]);
 
   // 处理拖拽排序结束
