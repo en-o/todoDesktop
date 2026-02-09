@@ -434,6 +434,7 @@ export default function MarkdownEditor({
       setCompleted([]);
       setNotes('');
       setSelectedId(null);
+      setDetailPreviewMode(true);
       lastParsedRef.current = { dateStr, valueHash: '' };
     }
   }, [dateStr]);
@@ -442,6 +443,16 @@ export default function MarkdownEditor({
   useEffect(() => {
     if (!dateStr) return;
     if (!value || !value.trim()) return;
+
+    // 检查内容是否属于当前日期（通过检查内容开头的日期标记）
+    const contentDateMatch = value.match(/^#\s+(\d{4}-\d{2}-\d{2})/);
+    if (contentDateMatch) {
+      const contentDate = contentDateMatch[1];
+      if (contentDate !== dateStr) {
+        // 内容不属于当前日期，不解析（等待正确的内容）
+        return;
+      }
+    }
 
     // 用户正在编辑时，不重新解析
     if (isEditingRef.current) {

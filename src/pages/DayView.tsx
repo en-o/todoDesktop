@@ -40,6 +40,16 @@ export default function DayView() {
     contentRef.current = content;
   }, [content]);
 
+  // 日期变化时立即清空内容，避免显示旧数据
+  const lastDateRef = useRef(date);
+  useEffect(() => {
+    if (date !== lastDateRef.current) {
+      setContent('');
+      setIsDirty(false);
+      lastDateRef.current = date;
+    }
+  }, [date]);
+
   // 文件路径
   const getFilePath = useCallback(() => {
     return `${year}/${month}/${day}.md`;
