@@ -22,7 +22,7 @@ interface ConfigState {
   notifySyncComplete: () => void;
 }
 
-export const useConfigStore = create<ConfigState>((set, get) => ({
+export const useConfigStore = create<ConfigState>((set) => ({
   config: null,
   isConfigured: false,
   gitReady: false,

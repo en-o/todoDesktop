@@ -304,6 +304,13 @@ async fn upload_attachment(
 }
 
 fn main() {
+    // 检查是否带有 --quit 参数（用于更新安装时关闭应用）
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--quit" || arg == "/quit") {
+        // 直接退出，不启动应用
+        return;
+    }
+
     // 创建系统托盘菜单
     let show = CustomMenuItem::new("show".to_string(), "显示主窗口");
     let quit = CustomMenuItem::new("quit".to_string(), "退出程序");
@@ -316,7 +323,12 @@ fn main() {
 
     tauri::Builder::default()
         // 单实例插件：防止重复打开
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // 检查是否带有 --quit 参数（用于更新安装时关闭现有实例）
+            if argv.iter().any(|arg| arg == "--quit" || arg == "/quit") {
+                app.exit(0);
+                return;
+            }
             // 当尝试打开第二个实例时，显示并聚焦现有窗口
             if let Some(window) = app.get_window("main") {
                 let _ = window.show();

@@ -78,6 +78,12 @@ jobs:
             - **macOS (Apple Silicon)**: 下载 `.dmg`
             - **Linux**: 下载 `.deb` 或 `.AppImage`
 
+            ### 更新说明
+            如果更新安装时提示程序正在运行，请先：
+            1. 右键点击系统托盘中的 Todo Desktop 图标，选择"退出程序"
+            2. 或者在命令行运行：`taskkill /F /IM "Todo Desktop.exe"`
+            3. 然后重新运行安装程序
+
             ### 更新日志
             请查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
           releaseDraft: false
