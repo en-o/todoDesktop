@@ -11,7 +11,7 @@ const { Title, Text } = Typography;
 
 export default function DayView() {
   const { date } = useParams<{ date: string }>();
-  const { isConfigured, gitReady, syncVersion, config } = useConfigStore();
+  const { isConfigured, syncVersion, config } = useConfigStore();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -81,36 +81,56 @@ export default function DayView() {
     setIsDirty(true);
   }, []);
 
-  // 记录上次加载的日期，避免重复加载
-  const lastLoadedDateRef = useRef('');
+  // 记录上次加载的日期和同步版本，避免重复加载
+  const lastLoadedRef = useRef({ date: '', syncVersion: 0 });
+  const isDirtyRef = useRef(false);
+
+  // 同步 isDirty 到 ref
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
 
   useEffect(() => {
     let cancelled = false;
 
     const doLoad = async () => {
-      // 如果正在编辑或有未保存的更改，不重新加载（除非日期变了）
-      if (isDirty && lastLoadedDateRef.current === date) {
-        return;
-      }
-
       if (!isConfigured || !date) {
         setContent(getDefaultContent());
         return;
       }
 
-      setLoading(true);
+      const dateChanged = lastLoadedRef.current.date !== date;
+      const syncChanged = syncVersion > 0 && lastLoadedRef.current.syncVersion !== syncVersion;
+
+      // 只有日期变化或手动同步完成时才重新加载
+      // 如果有未保存的更改且日期没变，不重新加载
+      if (!dateChanged && !syncChanged) {
+        return;
+      }
+
+      if (isDirtyRef.current && !dateChanged) {
+        // 有未保存的更改，只更新 syncVersion 记录，不重新加载
+        lastLoadedRef.current.syncVersion = syncVersion;
+        return;
+      }
+
+      // 只有日期变化时才显示 loading
+      if (dateChanged) {
+        setLoading(true);
+      }
+
       try {
         const filepath = getFilePath();
         const data = await invoke<string>('read_file', { filepath });
         if (!cancelled) {
           setContent(data || getDefaultContent());
           setIsDirty(false);
-          lastLoadedDateRef.current = date;
+          lastLoadedRef.current = { date, syncVersion };
         }
       } catch (error) {
         if (!cancelled) {
           setContent(getDefaultContent());
-          lastLoadedDateRef.current = date;
+          lastLoadedRef.current = { date, syncVersion };
         }
       } finally {
         if (!cancelled) {
@@ -124,7 +144,7 @@ export default function DayView() {
     return () => {
       cancelled = true;
     };
-  }, [date, isConfigured, gitReady, syncVersion, getFilePath, isDirty]);
+  }, [date, isConfigured, syncVersion, getFilePath]);
 
   // 快捷键 Ctrl+S 保存
   useEffect(() => {
