@@ -113,7 +113,7 @@
 /* 任务项 */
 .task-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 12px 16px;
   cursor: pointer;
   transition: background 0.15s;
@@ -143,6 +143,7 @@
   color: #c8c6c4;
   cursor: grab;
   margin-right: 8px;
+  margin-top: 2px;
   flex-shrink: 0;
   transition: color 0.15s;
 }
@@ -170,6 +171,10 @@
   transition: all 0.15s;
   flex-shrink: 0;
   margin-right: 12px;
+}
+
+.task-checkbox {
+  margin-top: 2px;
 }
 
 .task-checkbox:hover,
@@ -212,9 +217,8 @@
 .task-text {
   font-size: 14px;
   color: #323130;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .task-text.checked {
@@ -756,7 +760,7 @@
 
 .step-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 8px;
   background: #faf9f8;
   border-radius: 4px;
@@ -768,6 +772,8 @@
   height: 16px;
   border-width: 1.5px;
   margin-right: 0;
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 .step-checkbox .anticon {
@@ -781,6 +787,13 @@
   font-size: 13px;
   color: #323130;
   background: transparent;
+  resize: none;
+  overflow: hidden;
+  min-height: 20px;
+  line-height: 1.4;
+  font-family: inherit;
+  padding: 0;
+  field-sizing: content;
 }
 
 .step-text.checked {
@@ -805,6 +818,7 @@
   justify-content: center;
   opacity: 0;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
 .step-item:hover .step-delete {
@@ -873,6 +887,12 @@
   padding: 12px;
   overflow-y: auto;
   background: #faf9f8;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.detail-notes-preview:hover {
+  border-color: #0078d4;
+  background: #f0f9ff;
 }
 
 /* 详情底部 - 固定在底部 */

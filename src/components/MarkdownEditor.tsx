@@ -412,13 +412,14 @@ export default function MarkdownEditor({
   const [activeTab, setActiveTab] = useState<'todos' | 'completed' | 'notes'>('todos');
   const [isDragging, setIsDragging] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
-  const [detailPreviewMode, setDetailPreviewMode] = useState(false);
+  const [detailPreviewMode, setDetailPreviewMode] = useState(true);
 
   const dateStr = year && day ? `${year}-${day}` : '';
   const isEditingRef = useRef(false);
   const lastParsedRef = useRef({ dateStr: '', valueHash: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const stepInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const stepInputRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [focusStepId, setFocusStepId] = useState<string | null>(null);
 
   // 计算简单的内容哈希（用于判断内容是否真的变化）
@@ -993,7 +994,7 @@ export default function MarkdownEditor({
                     >
                       {child.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
                     </div>
-                    <input
+                    <textarea
                       ref={(el) => {
                         if (el) {
                           stepInputRefs.current.set(child.id, el);
@@ -1001,12 +1002,11 @@ export default function MarkdownEditor({
                           stepInputRefs.current.delete(child.id);
                         }
                       }}
-                      type="text"
                       className={`step-text ${child.checked ? 'checked' : ''}`}
                       value={child.text}
                       onChange={(e) => updateTodoText(child.id, e.target.value, isSelectedCompleted, selectedTodo.id)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           addStep(selectedTodo.id);
                         }
@@ -1019,6 +1019,7 @@ export default function MarkdownEditor({
                       }}
                       placeholder="步骤内容"
                       disabled={disabled}
+                      rows={1}
                     />
                     <button
                       className="step-delete"
@@ -1069,20 +1070,34 @@ export default function MarkdownEditor({
             </div>
             <div className="notes-hint">支持 Markdown 格式，但不允许使用标题（#）语法</div>
             {detailPreviewMode ? (
-              <div className="detail-notes-preview markdown-preview">
+              <div
+                className="detail-notes-preview markdown-preview"
+                onClick={() => {
+                  if (!disabled) {
+                    setDetailPreviewMode(false);
+                    // 延迟聚焦，等待 textarea 渲染
+                    setTimeout(() => {
+                      notesTextareaRef.current?.focus();
+                    }, 50);
+                  }
+                }}
+                style={{ cursor: disabled ? 'default' : 'pointer' }}
+              >
                 {selectedTodo.subContent ? (
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                     {selectedTodo.subContent}
                   </ReactMarkdown>
                 ) : (
-                  <div className="preview-empty">暂无备注内容</div>
+                  <div className="preview-empty">点击编辑备注内容</div>
                 )}
               </div>
             ) : (
               <textarea
+                ref={notesTextareaRef}
                 className="detail-notes"
                 value={selectedTodo.subContent}
                 onChange={(e) => updateTodoSubContent(selectedTodo.id, e.target.value, isSelectedCompleted, selectedParentId)}
+                onBlur={() => setDetailPreviewMode(true)}
                 placeholder="添加备注...（支持 Markdown，可拖拽文件上传）"
                 disabled={disabled}
               />
