@@ -66,8 +66,13 @@ function generateId(): string {
 
 // 解析 Markdown 内容
 function parseContent(content: string): ParsedContent {
-  // 统一处理换行符，移除 \r
-  const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // 1. 移除 BOM 字符（UTF-8 文件开头可能有）
+  let normalizedContent = content.replace(/^\uFEFF/, '');
+  // 2. 统一换行符：CRLF -> LF, CR -> LF
+  normalizedContent = normalizedContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // 3. 将 Tab 转换为 2 个空格（统一缩进）
+  normalizedContent = normalizedContent.replace(/\t/g, '  ');
+
   const lines = normalizedContent.split('\n');
   const todos: TodoItem[] = [];
   const completed: TodoItem[] = [];
@@ -79,30 +84,46 @@ function parseContent(content: string): ParsedContent {
   let inCodeBlock = false;
   let collectingSubContent: 'parent' | 'child' | null = null;
 
+  // Section 标题的正则（更宽容的匹配）
+  const todoSectionRegex = /^##\s*待办事项\s*$/;
+  const completedSectionRegex = /^##\s*完成事项\s*$/;
+  const notesSectionRegex = /^##\s*笔记\s*$/;
+  const dateHeaderRegex = /^#\s+\d{4}-\d{2}-\d{2}/;
+
+  // Todo 项的正则（只允许行首 0-1 个空格，作为父项）
+  const parentTodoRegex = /^(\s?)-\s*\[([x\s])\]\s*(.*)$/i;
+  // 子项正则（2+ 个空格缩进）
+  const childTodoRegex = /^(\s{2,})-\s*\[([x\s])\]\s*(.*)$/i;
+  // 缩进内容正则
+  const indentRegex = /^\s{2,}/;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
+    // 检测代码块
     if (line.trim().startsWith('```')) {
       inCodeBlock = !inCodeBlock;
     }
 
     if (!inCodeBlock) {
-      if (line.match(/^##\s*待办事项\s*$/)) {
+      // 检测 section 标题
+      if (todoSectionRegex.test(line)) {
         saveCurrentItems();
         currentSection = 'todos';
         continue;
       }
-      if (line.match(/^##\s*完成事项\s*$/)) {
+      if (completedSectionRegex.test(line)) {
         saveCurrentItems();
         currentSection = 'completed';
         continue;
       }
-      if (line.match(/^##\s*笔记\s*$/)) {
+      if (notesSectionRegex.test(line)) {
         saveCurrentItems();
         currentSection = 'notes';
         continue;
       }
-      if (line.match(/^#\s+\d{4}-\d{2}-\d{2}/)) {
+      // 跳过日期标题
+      if (dateHeaderRegex.test(line)) {
         continue;
       }
     }
@@ -115,16 +136,17 @@ function parseContent(content: string): ParsedContent {
     }
 
     if (currentSection === 'todos' || currentSection === 'completed') {
-      // 允许行首有少量空格（但不是缩进的子项）
-      const parentMatch = !inCodeBlock && line.match(/^\s{0,1}-\s*\[([\sx])\]\s*(.*)$/i);
-      const childMatch = !inCodeBlock && line.match(/^(\s{2,4})-\s*\[([\sx])\]\s*(.*)$/i);
+      // 先检测子项（缩进 2+ 空格），再检测父项
+      const childMatch = !inCodeBlock && line.match(childTodoRegex);
+      const parentMatch = !inCodeBlock && !childMatch && line.match(parentTodoRegex);
 
       if (parentMatch) {
         saveCurrentItems();
+        const checkChar = parentMatch[2].toLowerCase();
         currentParent = {
           id: generateId(),
-          checked: parentMatch[1].toLowerCase() === 'x',
-          text: parentMatch[2],
+          checked: checkChar === 'x',
+          text: parentMatch[3].trim(),
           subContent: '',
           children: [],
           collapsed: false,
@@ -136,23 +158,25 @@ function parseContent(content: string): ParsedContent {
           currentChild.subContent = currentChild.subContent.trimEnd();
           currentParent.children.push(currentChild);
         }
+        const checkChar = childMatch[2].toLowerCase();
         currentChild = {
           id: generateId(),
-          checked: childMatch[2].toLowerCase() === 'x',
-          text: childMatch[3],
+          checked: checkChar === 'x',
+          text: childMatch[3].trim(),
           subContent: '',
           children: [],
           collapsed: false,
         };
         collectingSubContent = 'child';
       } else if (currentParent) {
+        // 收集子内容（备注）
         if (collectingSubContent === 'child' && currentChild) {
-          const trimmedLine = line.replace(/^\s{2,4}/, '');
+          const trimmedLine = line.replace(/^\s{2,}/, '');
           currentChild.subContent += trimmedLine + '\n';
         } else if (collectingSubContent === 'parent') {
-          if (line.match(/^\s{2,4}/) && !childMatch) {
+          if (indentRegex.test(line) && !childMatch) {
             if (currentParent.children.length === 0 && !currentChild) {
-              currentParent.subContent += line.replace(/^\s{2,4}/, '') + '\n';
+              currentParent.subContent += line.replace(/^\s{2,}/, '') + '\n';
             }
           } else if (!line.match(/^\s/)) {
             currentParent.subContent += line + '\n';
