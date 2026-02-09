@@ -444,6 +444,14 @@ async fn save_stats(state: State<'_, AppState>, stats: Statistics) -> Result<(),
             .map_err(|e| e.to_string())?;
         fs::write(&stats_path, content).map_err(|e| e.to_string())?;
 
+        // 提交到 git（静默处理）
+        drop(config);
+        let git_manager = state.git_manager.lock().unwrap();
+        if let Some(git_mgr) = git_manager.as_ref() {
+            let git_path = ".desktop_data/stats.json";
+            let _ = git_mgr.add_and_commit(git_path, "更新统计数据");
+        }
+
         Ok(())
     } else {
         Err("未配置本地目录".to_string())
@@ -550,6 +558,14 @@ async fn recalculate_stats(state: State<'_, AppState>) -> Result<Statistics, Str
         }
         if let Ok(content) = serde_json::to_string_pretty(&stats) {
             let _ = fs::write(&stats_path, content);
+        }
+
+        // 提交到 git（静默处理）
+        drop(config);
+        let git_manager = state.git_manager.lock().unwrap();
+        if let Some(git_mgr) = git_manager.as_ref() {
+            let git_path = ".desktop_data/stats.json";
+            let _ = git_mgr.add_and_commit(git_path, "重新计算统计数据");
         }
 
         Ok(stats)
