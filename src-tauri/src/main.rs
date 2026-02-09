@@ -384,8 +384,8 @@ async fn delete_attachments(
             let git_manager = state.git_manager.lock().unwrap();
             if let Some(git_mgr) = git_manager.as_ref() {
                 for path in &deleted {
-                    // git rm 删除的文件
-                    let _ = git_mgr.add_and_commit(path, &format!("删除附件 {}", path));
+                    // 使用 remove_and_commit 从 git 中删除文件
+                    let _ = git_mgr.remove_and_commit(path, &format!("删除附件 {}", path));
                 }
             }
         }
