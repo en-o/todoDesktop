@@ -375,6 +375,7 @@ export default function MarkdownEditor({
   const dateStr = year && day ? `${year}-${day}` : '';
   const isEditingRef = useRef(false);
   const lastDateRef = useRef('');
+  const lastValueRef = useRef('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 自定义 Markdown 组件，处理本地图片路径
@@ -429,9 +430,21 @@ export default function MarkdownEditor({
 
   useEffect(() => {
     if (!dateStr) return;
-    if (isEditingRef.current && lastDateRef.current === dateStr) return;
+
+    const dateChanged = lastDateRef.current !== dateStr;
+    const valueChanged = lastValueRef.current !== value;
+
+    // 如果正在编辑中，且日期和值都没变化，跳过更新
+    if (isEditingRef.current && !dateChanged && !valueChanged) return;
+
+    // 如果正在编辑中，且只有值变化（是自己的编辑导致的），跳过更新
+    if (isEditingRef.current && !dateChanged && valueChanged) {
+      lastValueRef.current = value;
+      return;
+    }
 
     lastDateRef.current = dateStr;
+    lastValueRef.current = value;
 
     if (value) {
       const parsed = parseContent(value);
@@ -450,10 +463,11 @@ export default function MarkdownEditor({
     if (!dateStr) return;
     isEditingRef.current = true;
     const markdown = buildMarkdown(dateStr, newTodos, newCompleted, newNotes);
+    lastValueRef.current = markdown; // 更新 lastValueRef 以避免 useEffect 重新解析
     onChange(markdown);
     setTimeout(() => {
       isEditingRef.current = false;
-    }, 100);
+    }, 300);
   }, [dateStr, onChange]);
 
   // 处理拖拽排序结束

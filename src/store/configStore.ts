@@ -14,26 +14,34 @@ export interface Config {
 interface ConfigState {
   config: Config | null;
   isConfigured: boolean;
+  gitReady: boolean;
   loadConfig: () => Promise<void>;
   saveConfig: (config: Config) => Promise<void>;
   initGit: (config: Config) => Promise<void>;
 }
 
-export const useConfigStore = create<ConfigState>((set) => ({
+export const useConfigStore = create<ConfigState>((set, get) => ({
   config: null,
   isConfigured: false,
+  gitReady: false,
 
   loadConfig: async () => {
     try {
       const config = await invoke<Config | null>('load_config');
       if (config) {
         // 立即设置配置，让 UI 可以加载本地数据
-        set({ config, isConfigured: true });
+        set({ config, isConfigured: true, gitReady: false });
 
-        // 后台初始化 Git（不阻塞 UI）
-        invoke('init_git', { config }).catch((error) => {
-          console.error('初始化 Git 失败:', error);
-        });
+        // 后台初始化 Git，完成后设置 gitReady
+        invoke('init_git', { config })
+          .then(() => {
+            set({ gitReady: true });
+          })
+          .catch((error) => {
+            console.error('初始化 Git 失败:', error);
+            // 即使 Git 初始化失败，也设置 gitReady，让用户可以使用本地数据
+            set({ gitReady: true });
+          });
       }
     } catch (error) {
       console.error('加载配置失败:', error);
@@ -52,10 +60,12 @@ export const useConfigStore = create<ConfigState>((set) => ({
 
   initGit: async (config: Config) => {
     try {
+      set({ gitReady: false });
       await invoke('init_git', { config });
-      set({ config, isConfigured: true });
+      set({ config, isConfigured: true, gitReady: true });
     } catch (error) {
       console.error('初始化 Git 失败:', error);
+      set({ gitReady: true }); // 即使失败也设置为 ready
       throw error;
     }
   },
