@@ -213,6 +213,31 @@ impl GitManager {
         Ok(())
     }
 
+    /// 从 Git 中删除文件并提交
+    pub fn remove_and_commit(&self, filepath: &str, message: &str) -> Result<()> {
+        let mut index = self.repo.index()?;
+        index.remove_path(Path::new(filepath))?;
+        index.write()?;
+
+        let tree_id = index.write_tree()?;
+        let tree = self.repo.find_tree(tree_id)?;
+
+        let signature = Signature::now(&self.config.user_name, &self.config.user_email)?;
+
+        let parent_commit = self.repo.head()?.peel_to_commit()?;
+
+        self.repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            message,
+            &tree,
+            &[&parent_commit],
+        )?;
+
+        Ok(())
+    }
+
     pub fn push(&self) -> Result<()> {
         // 使用系统 git 命令以支持 Git Credential Manager
         let mut cmd = std::process::Command::new("git");
