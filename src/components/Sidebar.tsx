@@ -26,7 +26,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing, o
   const navigate = useNavigate();
   const { isConfigured, syncVersion, config } = useConfigStore();
   const { todayStats, stats, loadStats, recalculateStats, loading: statsLoading } = useStatsStore();
-  const { tasks: pastTasks, loading: pastLoading, scanTasks, dismissTask, deleteTask, removeFromList } = usePastUncompletedStore();
+  const { tasks: pastTasks, loading: pastLoading, scanTasks, dismissTask, deleteTask, addToTodayAndDelete } = usePastUncompletedStore();
   const [daysWithTodos, setDaysWithTodos] = useState<Set<string>>(new Set());
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(dayjs(selectedDate));
@@ -134,29 +134,30 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing, o
     setPastVisible(true);
   };
 
-  // 加入当日
-  const handleAddToToday = async (task: PastUncompletedTask) => {
+  // 加入当日（先添加到今日，然后删除原任务）
+  const handleAddToToday = (task: PastUncompletedTask) => {
     if (onAddTask) {
       onAddTask(task.text);
-      removeFromList(task.id);
       message.success('已加入今日待办');
+      // 删除原任务（后台执行，不等待）
+      addToTodayAndDelete(task);
     }
   };
 
   // 删除任务
-  const handleDeleteTask = async (task: PastUncompletedTask) => {
-    try {
-      await deleteTask(task);
-      message.success('已删除');
-    } catch (error) {
-      message.error('删除失败');
-    }
+  const handleDeleteTask = (task: PastUncompletedTask) => {
+    message.success('已删除');
+    // 后台执行，不等待
+    deleteTask(task).catch(() => {
+      message.error('删除失败，请重试');
+    });
   };
 
   // 忽略任务
-  const handleDismissTask = async (task: PastUncompletedTask) => {
-    await dismissTask(task.id);
+  const handleDismissTask = (task: PastUncompletedTask) => {
     message.info('已忽略，不再提示');
+    // 后台执行，不等待
+    dismissTask(task);
   };
 
   // 生成日历网格

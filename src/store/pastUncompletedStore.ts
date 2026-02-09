@@ -17,21 +17,28 @@ interface PastUncompletedState {
   dismissed: string[];
   loading: boolean;
   lastChecked: string;
+  processingIds: Set<string>; // 正在处理的任务ID
 
   // 扫描往期未完成任务
   scanTasks: () => Promise<void>;
 
   // 忽略任务（不再提示）
-  dismissTask: (id: string) => Promise<void>;
+  dismissTask: (task: PastUncompletedTask) => Promise<void>;
 
   // 删除任务（从源文件删除）
   deleteTask: (task: PastUncompletedTask) => Promise<void>;
+
+  // 添加到今日并删除原任务
+  addToTodayAndDelete: (task: PastUncompletedTask) => Promise<void>;
 
   // 加入当日后从列表移除
   removeFromList: (id: string) => void;
 
   // 清空任务列表
   clearTasks: () => void;
+
+  // 检查是否正在处理
+  isProcessing: (id: string) => boolean;
 }
 
 export const usePastUncompletedStore = create<PastUncompletedState>((set, get) => ({
@@ -39,6 +46,9 @@ export const usePastUncompletedStore = create<PastUncompletedState>((set, get) =
   dismissed: [],
   loading: false,
   lastChecked: '',
+  processingIds: new Set(),
+
+  isProcessing: (id: string) => get().processingIds.has(id),
 
   scanTasks: async () => {
     set({ loading: true });
@@ -57,9 +67,20 @@ export const usePastUncompletedStore = create<PastUncompletedState>((set, get) =
     }
   },
 
-  dismissTask: async (id: string) => {
-    const { dismissed } = get();
-    const newDismissed = [...dismissed, id];
+  dismissTask: async (task: PastUncompletedTask) => {
+    const { dismissed, processingIds } = get();
+
+    // 添加到处理中
+    const newProcessingIds = new Set(processingIds);
+    newProcessingIds.add(task.id);
+    set({ processingIds: newProcessingIds });
+
+    // 先从列表移除（立即响应）
+    set((state) => ({
+      tasks: state.tasks.filter((t) => t.id !== task.id),
+    }));
+
+    const newDismissed = [...dismissed, task.id];
     const today = new Date().toISOString().split('T')[0];
 
     try {
@@ -70,29 +91,90 @@ export const usePastUncompletedStore = create<PastUncompletedState>((set, get) =
         },
       });
 
-      set((state) => ({
+      set({
         dismissed: newDismissed,
-        tasks: state.tasks.filter((t) => t.id !== id),
         lastChecked: today,
-      }));
+      });
     } catch (error) {
       console.error('忽略任务失败:', error);
+      // 恢复到列表
+      set((state) => ({
+        tasks: [...state.tasks, task],
+      }));
+    } finally {
+      // 从处理中移除
+      set((state) => {
+        const updated = new Set(state.processingIds);
+        updated.delete(task.id);
+        return { processingIds: updated };
+      });
     }
   },
 
   deleteTask: async (task: PastUncompletedTask) => {
+    const { processingIds } = get();
+
+    // 添加到处理中
+    const newProcessingIds = new Set(processingIds);
+    newProcessingIds.add(task.id);
+    set({ processingIds: newProcessingIds });
+
+    // 先从列表移除（立即响应）
+    set((state) => ({
+      tasks: state.tasks.filter((t) => t.id !== task.id),
+    }));
+
     try {
       await invoke('delete_past_task', {
         sourceDate: task.sourceDate,
         text: task.text,
       });
-
-      set((state) => ({
-        tasks: state.tasks.filter((t) => t.id !== task.id),
-      }));
     } catch (error) {
       console.error('删除任务失败:', error);
+      // 恢复到列表
+      set((state) => ({
+        tasks: [...state.tasks, task],
+      }));
       throw error;
+    } finally {
+      // 从处理中移除
+      set((state) => {
+        const updated = new Set(state.processingIds);
+        updated.delete(task.id);
+        return { processingIds: updated };
+      });
+    }
+  },
+
+  addToTodayAndDelete: async (task: PastUncompletedTask) => {
+    const { processingIds } = get();
+
+    // 添加到处理中
+    const newProcessingIds = new Set(processingIds);
+    newProcessingIds.add(task.id);
+    set({ processingIds: newProcessingIds });
+
+    // 先从列表移除（立即响应）
+    set((state) => ({
+      tasks: state.tasks.filter((t) => t.id !== task.id),
+    }));
+
+    try {
+      // 删除原任务
+      await invoke('delete_past_task', {
+        sourceDate: task.sourceDate,
+        text: task.text,
+      });
+    } catch (error) {
+      console.error('删除原任务失败:', error);
+      // 不恢复，因为已经添加到今日了
+    } finally {
+      // 从处理中移除
+      set((state) => {
+        const updated = new Set(state.processingIds);
+        updated.delete(task.id);
+        return { processingIds: updated };
+      });
     }
   },
 
