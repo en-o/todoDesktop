@@ -1,12 +1,13 @@
 .sidebar {
   width: 240px;
-  height: 100vh;
+  height: 100%;
   background: #fafafa;
   border-right: 1px solid #f0f0f0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  flex-shrink: 0;
 }
 
 .sidebar-header {
@@ -151,6 +152,30 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  /* 隐藏滚动条但保持功能 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-scrollable:hover {
+  scrollbar-color: #d9d9d9 transparent;
+}
+
+.sidebar-scrollable::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+
+.sidebar-scrollable:hover::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
 }
 
 /* 快速访问 */

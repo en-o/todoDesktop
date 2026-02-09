@@ -14,6 +14,7 @@
   min-width: 300px;
   background: #fff;
   border-right: 1px solid #edebe9;
+  overflow: hidden;
 }
 
 /* 标签栏 */
@@ -78,6 +79,35 @@
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+  /* 隐藏滚动条但保持功能 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.task-list:hover {
+  scrollbar-color: #c8c6c4 transparent;
+}
+
+/* Webkit 浏览器隐藏滚动条 */
+.task-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.task-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.task-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.task-list:hover::-webkit-scrollbar-thumb {
+  background: #c8c6c4;
+}
+
+.task-list::-webkit-scrollbar-thumb:hover {
+  background: #a19f9d;
 }
 
 /* 任务项 */
@@ -231,7 +261,7 @@
   margin-top: 4px;
 }
 
-/* 添加任务栏 */
+/* 添加任务栏 - 固定在底部 */
 .add-task-bar {
   display: flex;
   align-items: center;
@@ -239,6 +269,7 @@
   border-top: 1px solid #edebe9;
   background: #fff;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .add-task-bar .anticon {
@@ -483,6 +514,7 @@
   flex-direction: column;
   position: relative;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .detail-panel.dragging {
@@ -496,6 +528,7 @@
   padding: 16px;
   border-bottom: 1px solid #edebe9;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .detail-title {
@@ -537,17 +570,55 @@
   color: #323130;
 }
 
+/* 详情内容滚动区域 */
+.detail-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  /* 隐藏滚动条但保持功能 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.detail-content:hover {
+  scrollbar-color: #c8c6c4 transparent;
+}
+
+.detail-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.detail-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.detail-content::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.detail-content:hover::-webkit-scrollbar-thumb {
+  background: #c8c6c4;
+}
+
+.detail-content::-webkit-scrollbar-thumb:hover {
+  background: #a19f9d;
+}
+
 /* 详情区块 */
 .detail-section {
   padding: 16px;
   border-bottom: 1px solid #edebe9;
+  flex-shrink: 0;
 }
 
 .detail-section.notes-section {
-  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 180px;
+  border-bottom: none;
 }
 
 .section-label {
@@ -625,6 +696,32 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  /* 隐藏滚动条但保持功能 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.steps-list:hover {
+  scrollbar-color: #c8c6c4 transparent;
+}
+
+.steps-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.steps-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.steps-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+
+.steps-list:hover::-webkit-scrollbar-thumb {
+  background: #c8c6c4;
 }
 
 .step-item {
@@ -748,11 +845,12 @@
   background: #faf9f8;
 }
 
-/* 详情底部 */
+/* 详情底部 - 固定在底部 */
 .detail-footer {
   padding: 16px;
   border-top: 1px solid #edebe9;
   flex-shrink: 0;
+  background: #fff;
 }
 
 .delete-task-btn {

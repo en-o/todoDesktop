@@ -956,123 +956,126 @@ export default function MarkdownEditor({
           </button>
         </div>
 
-        {/* 子步骤 - 只有父级任务才显示 */}
-        {!selectedParentId && (
-          <div className="detail-section">
-            <div className="section-label">
-              <UnorderedListOutlined /> 步骤
-              {selectedTodo.children.length > 0 && (
-                <span className="steps-progress">
-                  {selectedTodo.children.filter(c => c.checked).length}/{selectedTodo.children.length}
-                </span>
-              )}
-            </div>
-            <div className="steps-list">
-              {selectedTodo.children.map(child => (
-                <div key={child.id} className="step-item">
-                  <div
-                    className="step-checkbox"
-                    onClick={() => toggleTodo(child.id, isSelectedCompleted, selectedTodo.id)}
-                  >
-                    {child.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
+        {/* 可滚动内容区域 */}
+        <div className="detail-content">
+          {/* 子步骤 - 只有父级任务才显示 */}
+          {!selectedParentId && (
+            <div className="detail-section">
+              <div className="section-label">
+                <UnorderedListOutlined /> 步骤
+                {selectedTodo.children.length > 0 && (
+                  <span className="steps-progress">
+                    {selectedTodo.children.filter(c => c.checked).length}/{selectedTodo.children.length}
+                  </span>
+                )}
+              </div>
+              <div className="steps-list">
+                {selectedTodo.children.map(child => (
+                  <div key={child.id} className="step-item">
+                    <div
+                      className="step-checkbox"
+                      onClick={() => toggleTodo(child.id, isSelectedCompleted, selectedTodo.id)}
+                    >
+                      {child.checked ? <CheckOutlined /> : <div className="checkbox-empty" />}
+                    </div>
+                    <input
+                      ref={(el) => {
+                        if (el) {
+                          stepInputRefs.current.set(child.id, el);
+                        } else {
+                          stepInputRefs.current.delete(child.id);
+                        }
+                      }}
+                      type="text"
+                      className={`step-text ${child.checked ? 'checked' : ''}`}
+                      value={child.text}
+                      onChange={(e) => updateTodoText(child.id, e.target.value, isSelectedCompleted, selectedTodo.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addStep(selectedTodo.id);
+                        }
+                      }}
+                      onBlur={() => {
+                        // 如果步骤内容为空，删除这个步骤
+                        if (!child.text.trim()) {
+                          deleteTodo(child.id, isSelectedCompleted, selectedTodo.id);
+                        }
+                      }}
+                      placeholder="步骤内容"
+                      disabled={disabled}
+                    />
+                    <button
+                      className="step-delete"
+                      onClick={() => deleteTodo(child.id, isSelectedCompleted, selectedTodo.id)}
+                    >
+                      <DeleteOutlined />
+                    </button>
                   </div>
-                  <input
-                    ref={(el) => {
-                      if (el) {
-                        stepInputRefs.current.set(child.id, el);
-                      } else {
-                        stepInputRefs.current.delete(child.id);
-                      }
-                    }}
-                    type="text"
-                    className={`step-text ${child.checked ? 'checked' : ''}`}
-                    value={child.text}
-                    onChange={(e) => updateTodoText(child.id, e.target.value, isSelectedCompleted, selectedTodo.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addStep(selectedTodo.id);
-                      }
-                    }}
-                    onBlur={() => {
-                      // 如果步骤内容为空，删除这个步骤
-                      if (!child.text.trim()) {
-                        deleteTodo(child.id, isSelectedCompleted, selectedTodo.id);
-                      }
-                    }}
-                    placeholder="步骤内容"
-                    disabled={disabled}
-                  />
-                  <button
-                    className="step-delete"
-                    onClick={() => deleteTodo(child.id, isSelectedCompleted, selectedTodo.id)}
-                  >
-                    <DeleteOutlined />
-                  </button>
-                </div>
-              ))}
-              <button
-                className="add-step-btn"
-                onClick={() => addStep(selectedTodo.id)}
-                disabled={disabled}
-              >
-                <PlusOutlined /> 添加步骤
-              </button>
+                ))}
+                <button
+                  className="add-step-btn"
+                  onClick={() => addStep(selectedTodo.id)}
+                  disabled={disabled}
+                >
+                  <PlusOutlined /> 添加步骤
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* 备注/附件 */}
-        <div className="detail-section notes-section">
-          <div className="section-label">
-            <PaperClipOutlined /> 备注 & 附件
-            <div className="section-actions">
-              <button
-                className={`preview-toggle ${detailPreviewMode ? 'active' : ''}`}
-                onClick={() => setDetailPreviewMode(!detailPreviewMode)}
-                title={detailPreviewMode ? '编辑' : '预览'}
-              >
-                {detailPreviewMode ? <EditOutlined /> : <EyeOutlined />}
-              </button>
-              <button
-                className="upload-btn"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={disabled}
-              >
-                上传文件
-              </button>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              style={{ display: 'none' }}
-              onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-            />
-          </div>
-          <div className="notes-hint">支持 Markdown 格式，但不允许使用标题（#）语法</div>
-          {detailPreviewMode ? (
-            <div className="detail-notes-preview markdown-preview">
-              {selectedTodo.subContent ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                  {selectedTodo.subContent}
-                </ReactMarkdown>
-              ) : (
-                <div className="preview-empty">暂无备注内容</div>
-              )}
-            </div>
-          ) : (
-            <textarea
-              className="detail-notes"
-              value={selectedTodo.subContent}
-              onChange={(e) => updateTodoSubContent(selectedTodo.id, e.target.value, isSelectedCompleted, selectedParentId)}
-              placeholder="添加备注...（支持 Markdown，可拖拽文件上传）"
-              disabled={disabled}
-            />
           )}
+
+          {/* 备注/附件 */}
+          <div className="detail-section notes-section">
+            <div className="section-label">
+              <PaperClipOutlined /> 备注 & 附件
+              <div className="section-actions">
+                <button
+                  className={`preview-toggle ${detailPreviewMode ? 'active' : ''}`}
+                  onClick={() => setDetailPreviewMode(!detailPreviewMode)}
+                  title={detailPreviewMode ? '编辑' : '预览'}
+                >
+                  {detailPreviewMode ? <EditOutlined /> : <EyeOutlined />}
+                </button>
+                <button
+                  className="upload-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={disabled}
+                >
+                  上传文件
+                </button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+              />
+            </div>
+            <div className="notes-hint">支持 Markdown 格式，但不允许使用标题（#）语法</div>
+            {detailPreviewMode ? (
+              <div className="detail-notes-preview markdown-preview">
+                {selectedTodo.subContent ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    {selectedTodo.subContent}
+                  </ReactMarkdown>
+                ) : (
+                  <div className="preview-empty">暂无备注内容</div>
+                )}
+              </div>
+            ) : (
+              <textarea
+                className="detail-notes"
+                value={selectedTodo.subContent}
+                onChange={(e) => updateTodoSubContent(selectedTodo.id, e.target.value, isSelectedCompleted, selectedParentId)}
+                placeholder="添加备注...（支持 Markdown，可拖拽文件上传）"
+                disabled={disabled}
+              />
+            )}
+          </div>
         </div>
 
-        {/* 删除按钮 */}
+        {/* 删除按钮 - 固定在底部 */}
         <div className="detail-footer">
           <button
             className="delete-task-btn"
