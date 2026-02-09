@@ -206,22 +206,20 @@ export default function Sidebar({ selectedDate, onDateSelect, onSync, syncing }:
             <span className="quick-icon">📍</span>
             <span>今天</span>
           </div>
-          {todayStats.total > 0 && (
-            <div className="today-stats">
-              <div className="stat-item">
-                <span className="stat-label">待办</span>
-                <span className="stat-value">{todayStats.total}</span>
-              </div>
-              <div className="stat-item completed">
-                <span className="stat-label">已完成</span>
-                <span className="stat-value">{todayStats.completed}</span>
-              </div>
-              <div className="stat-item uncompleted">
-                <span className="stat-label">未完成</span>
-                <span className="stat-value">{todayStats.uncompleted}</span>
-              </div>
+          <div className="today-stats">
+            <div className="stat-item">
+              <span className="stat-label">待办</span>
+              <span className="stat-value">{todayStats.total}</span>
             </div>
-          )}
+            <div className="stat-item completed">
+              <span className="stat-label">已完成</span>
+              <span className="stat-value">{todayStats.completed}</span>
+            </div>
+            <div className="stat-item uncompleted">
+              <span className="stat-label">未完成</span>
+              <span className="stat-value">{todayStats.uncompleted}</span>
+            </div>
+          </div>
           {/* 查看统计按钮 */}
           <div
             className="quick-item"
