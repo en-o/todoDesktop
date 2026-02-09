@@ -154,6 +154,7 @@ function parseContent(content: string): ParsedContent {
         collectingSubContent = 'parent';
         currentChild = null;
       } else if (childMatch && currentParent) {
+        // 遇到新子任务，先保存之前的子任务
         if (currentChild) {
           currentChild.subContent = currentChild.subContent.trimEnd();
           currentParent.children.push(currentChild);
@@ -170,16 +171,28 @@ function parseContent(content: string): ParsedContent {
         collectingSubContent = 'child';
       } else if (currentParent) {
         // 收集子内容（备注）
-        if (collectingSubContent === 'child' && currentChild) {
+        const isIndentedLine = indentRegex.test(line);
+
+        if (isIndentedLine) {
           const trimmedLine = line.replace(/^\s{2,}/, '');
-          currentChild.subContent += trimmedLine + '\n';
-        } else if (collectingSubContent === 'parent') {
-          if (indentRegex.test(line) && !childMatch) {
-            if (currentParent.children.length === 0 && !currentChild) {
-              currentParent.subContent += line.replace(/^\s{2,}/, '') + '\n';
+          // 如果已经有子任务，缩进行作为父任务的备注
+          if (currentParent.children.length > 0 || currentChild) {
+            // 先保存当前子任务
+            if (currentChild) {
+              currentChild.subContent = currentChild.subContent.trimEnd();
+              currentParent.children.push(currentChild);
+              currentChild = null;
             }
-          } else if (!line.match(/^\s/)) {
-            currentParent.subContent += line + '\n';
+            currentParent.subContent += trimmedLine + '\n';
+            collectingSubContent = 'parent';
+          } else if (collectingSubContent === 'parent') {
+            // 没有子任务，缩进行作为父任务的备注
+            currentParent.subContent += trimmedLine + '\n';
+          }
+        } else if (line.trim() === '') {
+          // 空行
+          if (collectingSubContent === 'parent' && currentParent.subContent) {
+            currentParent.subContent += '\n';
           }
         }
       }
@@ -212,15 +225,17 @@ function itemToMarkdown(item: TodoItem, indent: string = ''): string {
   const checkbox = item.checked ? '- [x]' : '- [ ]';
   let result = `${indent}${checkbox} ${item.text}`;
 
+  // 先写步骤（children）
+  for (const child of item.children) {
+    result += '\n' + itemToMarkdown(child, indent + '  ');
+  }
+
+  // 再写备注（subContent）- 放在步骤之后
   if (item.subContent.trim()) {
     const subLines = item.subContent.split('\n');
     for (const line of subLines) {
-      result += '\n' + indent + (indent ? '' : '  ') + line;
+      result += '\n' + indent + '  ' + line;
     }
-  }
-
-  for (const child of item.children) {
-    result += '\n' + itemToMarkdown(child, indent + '  ');
   }
 
   return result;
@@ -960,7 +975,7 @@ export default function MarkdownEditor({
         <div className="detail-content">
           {/* 子步骤 - 只有父级任务才显示 */}
           {!selectedParentId && (
-            <div className="detail-section">
+            <div className="detail-section steps-section">
               <div className="section-label">
                 <UnorderedListOutlined /> 步骤
                 {selectedTodo.children.length > 0 && (
@@ -969,7 +984,7 @@ export default function MarkdownEditor({
                   </span>
                 )}
               </div>
-              <div className="steps-list">
+              <div className={`steps-list ${selectedTodo.children.length > 6 ? 'scrollable' : ''}`}>
                 {selectedTodo.children.map(child => (
                   <div key={child.id} className="step-item">
                     <div

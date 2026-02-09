@@ -693,37 +693,65 @@
   font-size: 12px;
 }
 
+/* 步骤区域 */
+.detail-section.steps-section {
+  flex-shrink: 0;
+}
+
 /* 步骤列表 */
 .steps-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 200px;
+}
+
+/* 超过6个步骤时显示滚动条 - 每个步骤约40px */
+.steps-list.scrollable {
+  max-height: 280px;
   overflow-y: auto;
   /* 隐藏滚动条但保持功能 */
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
 
-.steps-list:hover {
+.steps-list.scrollable:hover {
   scrollbar-color: #c8c6c4 transparent;
 }
 
-.steps-list::-webkit-scrollbar {
+.steps-list.scrollable::-webkit-scrollbar {
   width: 4px;
 }
 
-.steps-list::-webkit-scrollbar-track {
+.steps-list.scrollable::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.steps-list::-webkit-scrollbar-thumb {
+.steps-list.scrollable::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 2px;
 }
 
-.steps-list:hover::-webkit-scrollbar-thumb {
+.steps-list.scrollable:hover::-webkit-scrollbar-thumb {
   background: #c8c6c4;
+}
+
+/* 响应式调整步骤列表高度 */
+@media (max-height: 700px) {
+  .steps-list.scrollable {
+    max-height: 200px;
+  }
+}
+
+@media (max-height: 600px) {
+  .steps-list.scrollable {
+    max-height: 160px;
+  }
+}
+
+@media (min-height: 900px) {
+  .steps-list.scrollable {
+    max-height: 360px;
+  }
 }
 
 .step-item {
