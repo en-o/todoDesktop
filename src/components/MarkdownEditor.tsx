@@ -994,6 +994,12 @@ export default function MarkdownEditor({
                         addStep(selectedTodo.id);
                       }
                     }}
+                    onBlur={() => {
+                      // 如果步骤内容为空，删除这个步骤
+                      if (!child.text.trim()) {
+                        deleteTodo(child.id, isSelectedCompleted, selectedTodo.id);
+                      }
+                    }}
                     placeholder="步骤内容"
                     disabled={disabled}
                   />
