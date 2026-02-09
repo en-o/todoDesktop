@@ -35,3 +35,10 @@ pub struct GitInfo {
     pub remote_url: Option<String>,
     pub git_provider: Option<String>,
 }
+
+/// 数据目录指针（存储在 Tauri 应用数据目录中）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataPointer {
+    pub data_path: String,
+}

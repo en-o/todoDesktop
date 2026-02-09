@@ -103,8 +103,12 @@ sync-attachments.bat
 
 ## 数据结构
 
+所有数据都存储在用户设置的**本地数据目录**中，并通过 Git 同步到远程仓库。
+
 ```
-数据目录/
+本地数据目录/
+├── .desktop_data/          # 应用数据目录（随 Git 同步）
+│   └── config.json         # 应用配置
 ├── 2026/
 │   ├── 01/
 │   │   ├── 01-01.md        # 待办文件
@@ -112,14 +116,37 @@ sync-attachments.bat
 │   └── 02/
 │       ├── 02-07.md
 │       └── assets/
-└── .git/
+├── .git/
+└── README.md
 ```
 
-## 配置文件位置
+### 数据存储说明
 
-- **Windows**: `%APPDATA%\com.todo.desktop\config.json`
-- **macOS**: `~/Library/Application Support/com.todo.desktop/config.json`
-- **Linux**: `~/.config/com.todo.desktop/config.json`
+- **无本地缓存**：应用不在系统目录创建额外缓存，所有数据都在本地数据目录中
+- **配置同步**：应用配置存储在 `.desktop_data/config.json`，会随 Git 同步到远程
+- **多设备同步**：在新设备上克隆仓库后，配置会自动恢复
+- **指针文件**：系统只保存一个指向本地数据目录的指针文件
+
+### 指针文件位置
+
+应用仅在系统目录保存一个指针文件，指向本地数据目录：
+
+- **Windows**: `%APPDATA%\com.todo.desktop\pointer.json`
+- **macOS**: `~/Library/Application Support/com.todo.desktop/pointer.json`
+- **Linux**: `~/.config/com.todo.desktop/pointer.json`
+
+指针文件内容示例：
+```json
+{
+  "dataPath": "C:\\Users\\用户名\\Documents\\TodoData"
+}
+```
+
+## 更新说明
+
+更新安装时，如果提示程序正在运行：
+1. 右键点击系统托盘中的 Todo Desktop 图标，选择「退出程序」
+2. 或在命令行运行：`taskkill /F /IM "Todo Desktop.exe"`
 
 ## License
 

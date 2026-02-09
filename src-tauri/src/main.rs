@@ -7,8 +7,9 @@ mod config;
 
 use git_manager::GitManager;
 use file_manager::FileManager;
-use config::{Config, GitInfo};
+use config::{Config, GitInfo, DataPointer};
 use std::sync::Mutex;
+use std::path::Path;
 use tauri::{
     CustomMenuItem, Manager, State, SystemTray, SystemTrayEvent, SystemTrayMenu,
     SystemTrayMenuItem, WindowEvent,
@@ -127,23 +128,43 @@ async fn save_config(
     config: Config,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let config_path = app_handle
-        .path_resolver()
-        .app_data_dir()
-        .ok_or("无法获取配置目录")?
-        .join("config.json");
-    
-    std::fs::create_dir_all(config_path.parent().unwrap())
-        .map_err(|e| e.to_string())?;
-    
+    // 1. 在本地数据目录创建 .desktop_data 目录
+    let desktop_data_dir = Path::new(&config.local_path).join(".desktop_data");
+    std::fs::create_dir_all(&desktop_data_dir)
+        .map_err(|e| format!("创建 .desktop_data 目录失败: {}", e))?;
+
+    // 2. 保存配置到 .desktop_data/config.json
+    let config_path = desktop_data_dir.join("config.json");
     let config_str = serde_json::to_string_pretty(&config)
         .map_err(|e| e.to_string())?;
-    
-    std::fs::write(&config_path, config_str)
+    std::fs::write(&config_path, &config_str)
+        .map_err(|e| format!("保存配置失败: {}", e))?;
+
+    // 3. 保存数据目录指针到 Tauri 应用数据目录
+    let pointer_path = app_handle
+        .path_resolver()
+        .app_data_dir()
+        .ok_or("无法获取应用数据目录")?
+        .join("pointer.json");
+    std::fs::create_dir_all(pointer_path.parent().unwrap())
         .map_err(|e| e.to_string())?;
-    
-    *state.config.lock().unwrap() = Some(config);
-    
+
+    let pointer = DataPointer {
+        data_path: config.local_path.clone(),
+    };
+    let pointer_str = serde_json::to_string_pretty(&pointer)
+        .map_err(|e| e.to_string())?;
+    std::fs::write(&pointer_path, pointer_str)
+        .map_err(|e| format!("保存指针失败: {}", e))?;
+
+    // 4. 更新内存中的配置
+    *state.config.lock().unwrap() = Some(config.clone());
+
+    // 5. 如果 git 已初始化，提交配置文件
+    if let Some(git_mgr) = state.git_manager.lock().unwrap().as_ref() {
+        let _ = git_mgr.add_and_commit(".desktop_data/config.json", "更新配置");
+    }
+
     Ok("配置保存成功".to_string())
 }
 
@@ -152,26 +173,63 @@ async fn load_config(
     state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<Option<Config>, String> {
-    let config_path = app_handle
+    let app_data_dir = app_handle
         .path_resolver()
         .app_data_dir()
-        .ok_or("无法获取配置目录")?
-        .join("config.json");
+        .ok_or("无法获取应用数据目录")?;
 
-    if !config_path.exists() {
-        return Ok(None);
+    let pointer_path = app_data_dir.join("pointer.json");
+    let legacy_config_path = app_data_dir.join("config.json");
+
+    // 1. 尝试从指针加载
+    if pointer_path.exists() {
+        let pointer_str = std::fs::read_to_string(&pointer_path)
+            .map_err(|e| e.to_string())?;
+        let pointer: DataPointer = serde_json::from_str(&pointer_str)
+            .map_err(|e| e.to_string())?;
+
+        // 从 .desktop_data 目录加载配置
+        let config_path = Path::new(&pointer.data_path).join(".desktop_data").join("config.json");
+        if config_path.exists() {
+            let config_str = std::fs::read_to_string(&config_path)
+                .map_err(|e| e.to_string())?;
+            let config: Config = serde_json::from_str(&config_str)
+                .map_err(|e| e.to_string())?;
+
+            *state.config.lock().unwrap() = Some(config.clone());
+            return Ok(Some(config));
+        }
     }
 
-    let config_str = std::fs::read_to_string(&config_path)
-        .map_err(|e| e.to_string())?;
+    // 2. 兼容旧版：检查是否存在旧的 config.json
+    if legacy_config_path.exists() {
+        let config_str = std::fs::read_to_string(&legacy_config_path)
+            .map_err(|e| e.to_string())?;
+        let config: Config = serde_json::from_str(&config_str)
+            .map_err(|e| e.to_string())?;
 
-    let config: Config = serde_json::from_str(&config_str)
-        .map_err(|e| e.to_string())?;
+        // 迁移到新位置
+        let desktop_data_dir = Path::new(&config.local_path).join(".desktop_data");
+        if std::fs::create_dir_all(&desktop_data_dir).is_ok() {
+            let new_config_path = desktop_data_dir.join("config.json");
+            if std::fs::write(&new_config_path, &config_str).is_ok() {
+                // 创建指针文件
+                let pointer = DataPointer {
+                    data_path: config.local_path.clone(),
+                };
+                if let Ok(pointer_str) = serde_json::to_string_pretty(&pointer) {
+                    let _ = std::fs::write(&pointer_path, pointer_str);
+                }
+                // 删除旧配置文件
+                let _ = std::fs::remove_file(&legacy_config_path);
+            }
+        }
 
-    // 立即设置配置到状态，让 read_file 等命令可以使用
-    *state.config.lock().unwrap() = Some(config.clone());
+        *state.config.lock().unwrap() = Some(config.clone());
+        return Ok(Some(config));
+    }
 
-    Ok(Some(config))
+    Ok(None)
 }
 
 #[tauri::command]

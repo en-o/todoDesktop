@@ -66,7 +66,11 @@ function generateId(): string {
 
 // 解析 Markdown 内容
 function parseContent(content: string): ParsedContent {
-  const lines = content.split('\n');
+  console.log('[parseContent] Starting parse, content length:', content.length);
+  // 统一处理换行符，移除 \r
+  const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalizedContent.split('\n');
+  console.log('[parseContent] Total lines:', lines.length);
   const todos: TodoItem[] = [];
   const completed: TodoItem[] = [];
   let notes = '';
@@ -86,11 +90,13 @@ function parseContent(content: string): ParsedContent {
 
     if (!inCodeBlock) {
       if (line.match(/^##\s*待办事项\s*$/)) {
+        console.log('[parseContent] Found 待办事项 section at line', i);
         saveCurrentItems();
         currentSection = 'todos';
         continue;
       }
       if (line.match(/^##\s*完成事项\s*$/)) {
+        console.log('[parseContent] Found 完成事项 section at line', i);
         saveCurrentItems();
         currentSection = 'completed';
         continue;
@@ -113,10 +119,12 @@ function parseContent(content: string): ParsedContent {
     }
 
     if (currentSection === 'todos' || currentSection === 'completed') {
-      const parentMatch = !inCodeBlock && line.match(/^-\s*\[([\sx])\]\s*(.*)$/i);
+      // 允许行首有少量空格（但不是缩进的子项）
+      const parentMatch = !inCodeBlock && line.match(/^\s{0,1}-\s*\[([\sx])\]\s*(.*)$/i);
       const childMatch = !inCodeBlock && line.match(/^(\s{2,4})-\s*\[([\sx])\]\s*(.*)$/i);
 
       if (parentMatch) {
+        console.log('[parseContent] Found parent todo at line', i, ':', line.substring(0, 50));
         saveCurrentItems();
         currentParent = {
           id: generateId(),
@@ -178,6 +186,7 @@ function parseContent(content: string): ParsedContent {
   }
 
   saveCurrentItems();
+  console.log('[parseContent] Final result:', { todosCount: todos.length, completedCount: completed.length, todos });
   return { todos, completed, notes: notes.trimEnd() };
 }
 
@@ -374,9 +383,47 @@ export default function MarkdownEditor({
 
   const dateStr = year && day ? `${year}-${day}` : '';
   const isEditingRef = useRef(false);
-  const lastDateRef = useRef('');
-  const lastValueRef = useRef('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 解析内容 - 当 dateStr 或 value 变化时重新解析
+  useEffect(() => {
+    console.log('[MarkdownEditor] useEffect triggered', {
+      dateStr,
+      valueLength: value?.length,
+      valuePreview: value?.substring(0, 100),
+      isEditing: isEditingRef.current
+    });
+
+    // 如果正在编辑中，不重新解析（避免光标跳动）
+    if (isEditingRef.current) {
+      console.log('[MarkdownEditor] Skipping parse - editing in progress');
+      return;
+    }
+
+    if (value && value.trim()) {
+      console.log('[MarkdownEditor] Parsing content...');
+      const parsed = parseContent(value);
+      console.log('[MarkdownEditor] Parsed result:', {
+        todosCount: parsed.todos.length,
+        completedCount: parsed.completed.length,
+        notesLength: parsed.notes.length,
+        todos: parsed.todos
+      });
+      setTodos(parsed.todos);
+      setCompleted(parsed.completed);
+      setNotes(parsed.notes);
+    } else {
+      console.log('[MarkdownEditor] Empty value, setting empty arrays');
+      setTodos([]);
+      setCompleted([]);
+      setNotes('');
+    }
+  }, [dateStr, value]);
+
+  // 日期变化时重置选中状态
+  useEffect(() => {
+    setSelectedId(null);
+  }, [dateStr]);
 
   // 自定义 Markdown 组件，处理本地图片路径
   const markdownComponents = useMemo(() => ({
@@ -428,42 +475,10 @@ export default function MarkdownEditor({
 
   const selectedParentId = selectedId ? findParentId(selectedId) : undefined;
 
-  useEffect(() => {
-    if (!dateStr) return;
-
-    const dateChanged = lastDateRef.current !== dateStr;
-    const valueChanged = lastValueRef.current !== value;
-
-    // 如果正在编辑中，且日期和值都没变化，跳过更新
-    if (isEditingRef.current && !dateChanged && !valueChanged) return;
-
-    // 如果正在编辑中，且只有值变化（是自己的编辑导致的），跳过更新
-    if (isEditingRef.current && !dateChanged && valueChanged) {
-      lastValueRef.current = value;
-      return;
-    }
-
-    lastDateRef.current = dateStr;
-    lastValueRef.current = value;
-
-    if (value) {
-      const parsed = parseContent(value);
-      setTodos(parsed.todos);
-      setCompleted(parsed.completed);
-      setNotes(parsed.notes);
-    } else {
-      setTodos([]);
-      setCompleted([]);
-      setNotes('');
-    }
-    setSelectedId(null);
-  }, [dateStr, value]);
-
   const syncToParent = useCallback((newTodos: TodoItem[], newCompleted: TodoItem[], newNotes: string) => {
     if (!dateStr) return;
     isEditingRef.current = true;
     const markdown = buildMarkdown(dateStr, newTodos, newCompleted, newNotes);
-    lastValueRef.current = markdown; // 更新 lastValueRef 以避免 useEffect 重新解析
     onChange(markdown);
     setTimeout(() => {
       isEditingRef.current = false;

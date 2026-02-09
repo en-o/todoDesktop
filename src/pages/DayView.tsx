@@ -82,12 +82,45 @@ export default function DayView() {
   }, []);
 
   useEffect(() => {
-    if (isConfigured && date) {
-      loadContent();
-    } else {
-      setContent(getDefaultContent());
-    }
-  }, [date, isConfigured, gitReady, syncVersion]);
+    let cancelled = false;
+
+    const doLoad = async () => {
+      console.log('[DayView] doLoad called', { isConfigured, date, gitReady, syncVersion });
+
+      if (!isConfigured || !date) {
+        console.log('[DayView] Not configured or no date, setting default content');
+        setContent(getDefaultContent());
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const filepath = getFilePath();
+        console.log('[DayView] Loading file:', filepath);
+        const data = await invoke<string>('read_file', { filepath });
+        console.log('[DayView] File loaded, length:', data?.length, 'preview:', data?.substring(0, 100));
+        if (!cancelled) {
+          setContent(data || getDefaultContent());
+          setIsDirty(false);
+        }
+      } catch (error) {
+        console.log('[DayView] Load error:', error);
+        if (!cancelled) {
+          setContent(getDefaultContent());
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    doLoad();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [date, isConfigured, gitReady, syncVersion, getFilePath]);
 
   // 快捷键 Ctrl+S 保存
   useEffect(() => {
@@ -112,20 +145,6 @@ export default function DayView() {
 
     return () => clearTimeout(timer);
   }, [content, isDirty, isConfigured, handleSave]);
-
-  const loadContent = async () => {
-    setLoading(true);
-    try {
-      const filepath = getFilePath();
-      const data = await invoke<string>('read_file', { filepath });
-      setContent(data || getDefaultContent());
-      setIsDirty(false);
-    } catch (error) {
-      setContent(getDefaultContent());
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getDefaultContent = () => {
     return `# ${parsedDate.format('YYYY-MM-DD')}
