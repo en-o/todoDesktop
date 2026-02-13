@@ -191,10 +191,7 @@ async fn save_config(
     // 4. 更新内存中的配置
     *state.config.lock().unwrap() = Some(config.clone());
 
-    // 5. 如果 git 已初始化，提交配置文件
-    if let Some(git_mgr) = state.git_manager.lock().unwrap().as_ref() {
-        let _ = git_mgr.add_and_commit(".desktop_data/config.json", "更新配置");
-    }
+    // 注意：.desktop_data/config.json 不再提交到 git（本地客户端数据不同步）
 
     Ok("配置保存成功".to_string())
 }
@@ -471,13 +468,7 @@ async fn save_stats(state: State<'_, AppState>, stats: Statistics) -> Result<(),
             .map_err(|e| e.to_string())?;
         fs::write(&stats_path, content).map_err(|e| e.to_string())?;
 
-        // 提交到 git（静默处理）
-        drop(config);
-        let git_manager = state.git_manager.lock().unwrap();
-        if let Some(git_mgr) = git_manager.as_ref() {
-            let git_path = ".desktop_data/stats.json";
-            let _ = git_mgr.add_and_commit(git_path, "更新统计数据");
-        }
+        // 注意：.desktop_data/stats.json 不再提交到 git（本地客户端数据不同步）
 
         Ok(())
     } else {
@@ -587,13 +578,7 @@ async fn recalculate_stats(state: State<'_, AppState>) -> Result<Statistics, Str
             let _ = fs::write(&stats_path, content);
         }
 
-        // 提交到 git（静默处理）
-        drop(config);
-        let git_manager = state.git_manager.lock().unwrap();
-        if let Some(git_mgr) = git_manager.as_ref() {
-            let git_path = ".desktop_data/stats.json";
-            let _ = git_mgr.add_and_commit(git_path, "重新计算统计数据");
-        }
+        // 注意：.desktop_data/stats.json 不再提交到 git（本地客户端数据不同步）
 
         Ok(stats)
     } else {
@@ -751,13 +736,7 @@ async fn update_daily_stats(
             .map_err(|e| e.to_string())?;
         fs::write(&stats_path, &content).map_err(|e| e.to_string())?;
 
-        // 提交到 git（静默处理，不影响主流程）
-        drop(config);
-        let git_manager = state.git_manager.lock().unwrap();
-        if let Some(git_mgr) = git_manager.as_ref() {
-            let git_path = ".desktop_data/stats.json";
-            let _ = git_mgr.add_and_commit(git_path, "更新统计数据");
-        }
+        // 注意：.desktop_data/stats.json 不再提交到 git（本地客户端数据不同步）
 
         Ok(stats)
     } else {
@@ -817,13 +796,7 @@ async fn save_past_uncompleted(state: State<'_, AppState>, data: PastUncompleted
             .map_err(|e| e.to_string())?;
         fs::write(&path, &content).map_err(|e| e.to_string())?;
 
-        // 提交到 git
-        drop(config);
-        let git_manager = state.git_manager.lock().unwrap();
-        if let Some(git_mgr) = git_manager.as_ref() {
-            let git_path = ".desktop_data/past_uncompleted.json";
-            let _ = git_mgr.add_and_commit(git_path, "更新往期未完成数据");
-        }
+        // 注意：.desktop_data/past_uncompleted.json 不再提交到 git（本地客户端数据不同步）
 
         Ok(())
     } else {

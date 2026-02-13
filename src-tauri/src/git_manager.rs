@@ -135,9 +135,15 @@ impl GitManager {
         git_config.set_str("user.name", &self.config.user_name)?;
         git_config.set_str("user.email", &self.config.user_email)?;
 
+        // 确保 .gitignore 包含 .desktop_data/（本地客户端数据不同步）
+        self.ensure_gitignore()?;
+
         // 检查是否有初始提交
         if self.repo.is_empty()? {
             self.create_initial_commit()?;
+        } else {
+            // 如果仓库已存在，移除已跟踪的 .desktop_data 文件
+            let _ = self.untrack_desktop_data();
         }
 
         // 设置远程仓库
@@ -157,6 +163,101 @@ impl GitManager {
         }
 
         Ok(())
+    }
+
+    /// 确保 .gitignore 文件包含 .desktop_data/ 目录
+    fn ensure_gitignore(&self) -> Result<()> {
+        let gitignore_path = Path::new(&self.config.local_path).join(".gitignore");
+        let desktop_data_rule = ".desktop_data/";
+
+        let content = if gitignore_path.exists() {
+            std::fs::read_to_string(&gitignore_path)?
+        } else {
+            String::new()
+        };
+
+        // 检查是否已包含 .desktop_data/ 规则
+        let has_rule = content.lines().any(|line| {
+            let trimmed = line.trim();
+            trimmed == desktop_data_rule || trimmed == ".desktop_data"
+        });
+
+        if !has_rule {
+            // 添加规则到 .gitignore
+            let new_content = if content.is_empty() {
+                format!("# 本地客户端数据（不同步）\n{}\n", desktop_data_rule)
+            } else if content.ends_with('\n') {
+                format!("{}\n# 本地客户端数据（不同步）\n{}\n", content, desktop_data_rule)
+            } else {
+                format!("{}\n\n# 本地客户端数据（不同步）\n{}\n", content, desktop_data_rule)
+            };
+
+            std::fs::write(&gitignore_path, &new_content)?;
+
+            // 如果仓库不为空，提交 .gitignore 更新
+            if !self.repo.is_empty()? {
+                let mut index = self.repo.index()?;
+                index.add_path(Path::new(".gitignore"))?;
+                index.write()?;
+
+                let tree_id = index.write_tree()?;
+                let tree = self.repo.find_tree(tree_id)?;
+                let signature = Signature::now(&self.config.user_name, &self.config.user_email)?;
+                let parent_commit = self.repo.head()?.peel_to_commit()?;
+
+                self.repo.commit(
+                    Some("HEAD"),
+                    &signature,
+                    &signature,
+                    "添加 .desktop_data 到 .gitignore",
+                    &tree,
+                    &[&parent_commit],
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 从 git 跟踪中移除 .desktop_data 目录（但保留本地文件）
+    fn untrack_desktop_data(&self) -> Result<bool> {
+        let mut index = self.repo.index()?;
+        let mut files_to_remove: Vec<String> = Vec::new();
+
+        // 查找被跟踪的 .desktop_data 文件
+        for entry in index.iter() {
+            let path = String::from_utf8_lossy(&entry.path).to_string();
+            if path.starts_with(".desktop_data/") {
+                files_to_remove.push(path);
+            }
+        }
+
+        if files_to_remove.is_empty() {
+            return Ok(false);
+        }
+
+        // 从索引中移除文件（但保留本地文件）
+        for path in &files_to_remove {
+            index.remove_path(Path::new(path))?;
+        }
+        index.write()?;
+
+        // 提交移除操作
+        let tree_id = index.write_tree()?;
+        let tree = self.repo.find_tree(tree_id)?;
+        let signature = Signature::now(&self.config.user_name, &self.config.user_email)?;
+        let parent_commit = self.repo.head()?.peel_to_commit()?;
+
+        self.repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "停止跟踪 .desktop_data（本地客户端数据不再同步）",
+            &tree,
+            &[&parent_commit],
+        )?;
+
+        Ok(true)
     }
 
     fn create_initial_commit(&self) -> Result<()> {
